@@ -1,0 +1,57 @@
+SYSINTERNALS SOFTWARE LICENSE TERMS
+
+These license terms are an agreement between you and Microsoft Corporation (or based on where you live, one of its affiliates).
+
+PLEASE READ THEM. THEY APPLY TO THE SOFTWARE YOU ARE DOWNLOADING FROM SYSINTERNALS (HTTPS://DOCS.MICROSOFT.COM/EN-US/SYSINTERNALS/), EXCEPT THAT IF YOU ACQUIRED THE SOFTWARE IN A STORE OR IT CAME WITH HARDWARE YOU ACQUIRED IN A STORE, THOSE ITEMS ARE GOVERNED BY ANY PRINTED END-USER LICENSE AGREEMENT THAT CAME WITH THE ITEMS OR THAT IS AVAILABLE AT THE STORE.
+
+1. INSTALLATION AND USE RIGHTS
+   a. Installation and Use. You may install and use one copy of the software on your computers.
+   b. Included Microsoft Programs. The software may include certain Microsoft Corporation programs listed at https://docs.microsoft.com/en-us/sysinternals/. If so, those programs are governed by their separate license agreements, and the terms in those license agreements apply instead of the terms in this agreement.
+
+2. ADDITIONAL LICENSING REQUIREMENTS AND RESTRICTIONS
+   a. Internet-Based Features. Microsoft provides internet-based features with this software. It may change or discontinue these features at any time.
+   b. Limitations on Use. You may not use the software in any way that could harm it or impair anyone else's use of it. You may not use the software to try to gain unauthorized access to any service, data, account or network.
+
+3. SCOPE OF LICENSE
+   The software is licensed, not sold. This agreement only gives you some rights to use the software. Microsoft reserves all other rights. Unless applicable law gives you more rights despite this limitation, you may use the software only as expressly permitted in this agreement. In doing so, you must comply with any technical limitations in the software that only allow you to use it in certain ways.
+
+You may not:
+   a. work around any technical limitations in the software;
+   b. reverse engineer, decompile or disassemble the software, except and only to the extent that applicable law expressly permits despite this limitation;
+   c. remove, minimize, block or modify any notices of Microsoft or its suppliers in the software;
+   d. use the software for commercial software hosting services;
+   e. distribute, rent, lease, transfer, assign or sublicense the software;
+   f. transfer the software or this agreement to any third party; or
+   g. use the software as server software or for commercial hosting.
+
+4. EXPORT RESTRICTIONS
+   The software is subject to United States export laws and regulations. You must comply with all domestic and international export laws and regulations that apply to the software. These laws include restrictions on destinations, end users and end use. For additional information, see https://www.microsoft.com/exporting.
+
+5. SUPPORT SERVICES
+   Microsoft is not obligated to provide any support services for this software. Any support provided by Microsoft is provided "as is."
+
+6. ENTIRE AGREEMENT
+   This agreement and the terms for supplements, updates, internet-based services and support services that you use, constitute the entire agreement between you and Microsoft for the software and support services.
+
+7. APPLICABLE LAW
+   This agreement is governed by the laws of the state or country where you live, except that:
+   a. If you live in the United States, the laws of the State of Washington govern this agreement; and
+   b. If you live in Quebec, Canada, the laws of that province govern this agreement.
+
+8. DISCLAIMER OF WARRANTY
+   THE SOFTWARE IS PROVIDED "AS-IS." YOU BEAR THE RISK OF USING IT. MICROSOFT GIVES NO EXPRESS WARRANTIES, GUARANTEES OR CONDITIONS. YOU MAY HAVE ADDITIONAL CONSUMER RIGHTS UNDER YOUR LOCAL LAWS WHICH THIS AGREEMENT CANNOT CHANGE. TO THE EXTENT PERMITTED UNDER YOUR LOCAL LAWS, MICROSOFT EXCLUDES THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+
+9. LIMITATION ON AND EXCLUSION OF REMEDIES AND DAMAGES
+   YOU CAN RECOVER FROM MICROSOFT AND ITS SUPPLIERS ONLY DIRECT DAMAGES UP TO U.S. $5.00. YOU CANNOT RECOVER ANY OTHER DAMAGES, INCLUDING CONSEQUENTIAL, LOST PROFITS, SPECIAL, INDIRECT OR INCIDENTAL DAMAGES.
+   This limitation applies to (a) anything related to the software, services, content (including code) on third party Internet sites, or third party programs; and (b) claims for breach of contract, breach of warranty, guarantee or condition, strict liability, negligence or other tort to the extent permitted by applicable law.
+
+It also applies even if Microsoft knew or should have known about the possibility of the damages.
+
+Some states do not allow the exclusion or limitation of incidental, consequential or other damages, so the above limitation or exclusion may not apply to you.
+
+10. DISCLAIMER
+    FOR FORENSIC ANALYSIS AND INCIDENT RESPONSE: The software provided is a utility tool for system analysis and forensic collection. While the tool is provided "as-is", it may be used in authorized forensic investigations for legitimate purposes. Users should verify the tool's output independently and understand that any results should be analyzed in context with other evidence sources.
+
+The SysInternals tools (strings.exe and sigcheck.exe) are provided as freeware for authorized use in system administration, security analysis, and forensic investigations.
+
+For more information, visit: https://docs.microsoft.com/en-us/sysinternals/

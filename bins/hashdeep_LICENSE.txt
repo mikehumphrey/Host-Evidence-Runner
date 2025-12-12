@@ -1,0 +1,38 @@
+HASHDEEP/MD5DEEP LICENSE
+========================
+
+hashdeep and md5deep are part of The Sleuth Kit, which is released under public domain.
+
+The software is provided "as-is" without warranty of any kind, express or implied, 
+including but not limited to the warranties of merchantability, fitness for a particular purpose 
+and noninfringement.
+
+In no event shall the authors be liable for any claim, damages or other liability, 
+whether in an action of contract, tort or otherwise, arising from, out of or in connection 
+with the software or the use or other dealings in the software.
+
+Source Code:
+The source code is available at: https://sourceforge.net/projects/md5deep/
+
+NIST Distribution:
+This tool is distributed by the National Institute of Standards and Technology (NIST) 
+as part of the National Software Reference Library (NSRL).
+
+NIST Reference: https://www.nist.gov/itl/ssd/software-quality-group/national-software-reference-library-nsrl
+
+Public Domain Dedication:
+To the extent possible under law, the hashdeep authors have waived all copyright and 
+related or neighboring rights to the software. This software is distributed as public domain.
+
+Use in Forensic Investigations:
+hashdeep is widely used in digital forensics for:
+- Generating and comparing cryptographic hashes (MD5, SHA1, SHA256, SSDEEP)
+- Creating hash lists (known good and known bad databases)
+- Integrity verification of collected evidence
+- Compliance with forensic standards
+
+This tool is approved for use in authorized forensic investigations.
+
+For more information, visit:
+- https://sourceforge.net/projects/md5deep/
+- https://www.nist.gov/itl/ssd/software-quality-group/national-software-reference-library-nsrl

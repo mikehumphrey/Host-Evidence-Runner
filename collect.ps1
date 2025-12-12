@@ -398,13 +398,109 @@ try {
 
     Write-Host "Successfully collected network and connection artifacts."
 
+    # ============================================================================
+    # PHASE 1: Hash Verification and Signature Analysis
+    # ============================================================================
+    
+    Write-Verbose "Starting Phase 1 tool integration..."
+    Write-Log "Starting Phase 1: Hash verification and signature analysis"
+    
+    # Generate SHA256 Manifest using hashdeep
+    Write-Verbose "Generating SHA256 hash manifest..."
+    Write-Log "Generating SHA256 hash manifest for chain of custody"
+    
+    $hashdeepPath = Join-Path $scriptPath "bins\hashdeep.exe"
+    if (Test-Path $hashdeepPath) {
+        try {
+            Write-Verbose "  - Running hashdeep.exe on collected files"
+            & $hashdeepPath -r -c sha256 ".\$outputDir" | Out-File -FilePath ".\$outputDir\SHA256_MANIFEST.txt" -ErrorAction Stop
+            Write-Host "Successfully generated SHA256 manifest."
+            Write-Log "SHA256 manifest created: $outputDir\SHA256_MANIFEST.txt"
+        } catch {
+            Write-Log "Warning: Could not generate SHA256 manifest: $_" -Level Warning
+            Write-Host "Warning: SHA256 manifest generation failed (continuing collection)"
+        }
+    } else {
+        Write-Log "Note: hashdeep.exe not found in bins/ - SHA256 manifest skipped (Phase 1 tool not installed)" -Level Warning
+        Write-Verbose "hashdeep.exe not available - skipping hash verification"
+    }
+    
+    # Verify executable signatures using sigcheck
+    Write-Verbose "Verifying executable signatures..."
+    Write-Log "Verifying executable signatures in collected artifacts"
+    
+    $sigcheckPath = Join-Path $scriptPath "bins\sigcheck.exe"
+    if (Test-Path $sigcheckPath) {
+        try {
+            Write-Verbose "  - Running sigcheck.exe on collected executables"
+            
+            # Find all .exe files in collected artifacts
+            $exeFiles = Get-ChildItem -Path ".\$outputDir" -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue
+            if ($exeFiles) {
+                & $sigcheckPath -nobanner -accepteula $exeFiles.FullName | Out-File -FilePath ".\$outputDir\ExecutableSignatures.txt" -ErrorAction Stop
+                Write-Host "Successfully verified executable signatures."
+                Write-Log "Executable signatures verified: $outputDir\ExecutableSignatures.txt"
+            } else {
+                Write-Verbose "  - No .exe files found in collected artifacts"
+                Write-Log "No executables found in collected artifacts - signature verification skipped"
+            }
+        } catch {
+            Write-Log "Warning: Could not verify executable signatures: $_" -Level Warning
+            Write-Host "Warning: Executable signature verification failed (continuing collection)"
+        }
+    } else {
+        Write-Log "Note: sigcheck.exe not found in bins/ - signature verification skipped (Phase 1 tool not installed)" -Level Warning
+        Write-Verbose "sigcheck.exe not available - skipping signature verification"
+    }
+    
+    # Extract strings from registry hives for analysis
+    Write-Verbose "Extracting readable strings from critical files..."
+    Write-Log "Extracting strings from registry hives for analysis"
+    
+    $stringsPath = Join-Path $scriptPath "bins\strings.exe"
+    if (Test-Path $stringsPath) {
+        try {
+            Write-Verbose "  - Running strings.exe on registry hives"
+            
+            $registryDir = Join-Path $outputDir "Registry"
+            if (Test-Path $registryDir) {
+                # Extract strings from NTUSER.DAT files
+                $ntuserFiles = Get-ChildItem -Path $registryDir -Filter "NTUSER.DAT" -Recurse -ErrorAction SilentlyContinue
+                foreach ($file in $ntuserFiles) {
+                    $outputFile = "$($file.FullName)_Strings.txt"
+                    & $stringsPath -nobanner $file.FullName | Out-File -FilePath $outputFile -ErrorAction SilentlyContinue
+                    Write-Verbose "    - Extracted strings from $($file.Name)"
+                }
+                
+                Write-Host "Successfully extracted strings from registry hives."
+                Write-Log "String extraction completed from registry hives"
+            } else {
+                Write-Verbose "  - Registry directory not found"
+            }
+        } catch {
+            Write-Log "Warning: Could not extract strings: $_" -Level Warning
+            Write-Host "Warning: String extraction failed (continuing collection)"
+        }
+    } else {
+        Write-Log "Note: strings.exe not found in bins/ - string extraction skipped (Phase 1 tool not installed)" -Level Warning
+        Write-Verbose "strings.exe not available - skipping string extraction"
+    }
+    
+    Write-Log "Phase 1 tools integration completed"
+
+    # ============================================================================
+    # Compression and Finalization
+    # ============================================================================
+    
     $zipFile = "collected_files.zip"
     if (Test-Path $zipFile) {
         Remove-Item $zipFile
     }
     Write-Verbose "Compressing collected files into $zipFile"
-    Compress-Archive -Path ".\$outputDir\*" -DestinationPath $zipFile
+    Write-Log "Compressing collected files for transport"
+    Compress-Archive -Path ".\$outputDir\*" -DestinationPath $zipFile -ErrorAction Stop
     Write-Host "Successfully compressed files to $zipFile."
+    Write-Log "Files compressed to: $zipFile"
 
 } catch {
     Write-Log "============================================================================" -Level Error

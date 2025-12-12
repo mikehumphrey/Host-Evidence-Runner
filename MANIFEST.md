@@ -147,8 +147,33 @@ USB:\Cado-Batch\
 ├── ⭐ CRITICAL FILES (Required)
 ├── RUN_ME.bat                        (double-click to start)
 ├── collect.ps1                       (main script)
-├── bins\
-│   └── RawCopy.exe                   (file extraction)
+├── bins/
+│   ├── 🔧 CORE TOOLS (Always Used)
+│   ├── RawCopy.exe                   (710 KB - extract locked NTFS files)
+│   ├── zip.exe                       (132 KB - compression utility)
+│   │
+│   ├── 🟢 PHASE 1 TOOLS (Hash & Signature Verification) - ✅ INSTALLED
+│   ├── hashdeep.exe                  (771 KB - SHA256 hashing) ✅
+│   ├── strings.exe                   (361 KB - string extraction) ✅
+│   ├── sigcheck.exe                  (435 KB - signature verification) ✅
+│   │
+│   ├── 🟠 PHASE 1 TOOLS (64-bit Alternatives)
+│   ├── hashdeep64.exe                (848 KB - optional performance)
+│   ├── strings64.exe                 (467 KB - optional performance)
+│   ├── sigcheck64.exe                (528 KB - optional performance)
+│   │
+│   ├── 📚 DOCUMENTATION & LICENSES
+│   ├── BINS_ORGANIZATION.md          (11 KB - tools organization guide)
+│   ├── PHASE_1_TOOLS_INSTALLATION.md (5 KB - installation guide)
+│   ├── RawCopy_LICENSE.md            (17 KB - RawCopy license)
+│   ├── Zip_License.txt               (10 KB - Info-ZIP license)
+│   ├── hashdeep_LICENSE.txt          (2 KB - Public Domain license)
+│   ├── SysInternals_LICENSE.txt      (5 KB - SysInternals license)
+│   │
+│   └── 📦 REFERENCE FOLDERS (Optional)
+│       ├── md5deep/                  (source & alternative hash tools)
+│       ├── Strings/                  (source & alternative string tools)
+│       └── Sigcheck/                 (source & alternative signature tools)
 │
 ├── 📋 DOCUMENTATION
 ├── 00_START_HERE.md                  (analyst: read first)
@@ -188,35 +213,94 @@ USB:\Cado-Batch\
 | TECHNICAL_DOCUMENTATION.md | 18 KB | Analyst | How it works |
 | ANALYST_DEPLOYMENT_CHECKLIST.md | 8 KB | Analyst | Planning tool |
 | REPOSITORY_CONTENTS.md | 13 KB | Analyst | What's in repo |
+| BINS_EVALUATION_AND_TOOLS.md | 25 KB | Analyst | Tool evaluation & roadmap |
 | README_NEW.md | 11 KB | Both | Updated overview |
 | LICENSE | 11 KB | Both | Apache 2.0 license |
+| **bins/** | | | |
+| RawCopy.exe | 710 KB | (System) | Extract locked NTFS files |
+| zip.exe | 132 KB | (System) | Archive compression |
+| **hashdeep.exe** | 771 KB | (System) | 🟢 Phase 1: SHA256 hashing ✅ |
+| **strings.exe** | 361 KB | (System) | 🟢 Phase 1: String extraction ✅ |
+| **sigcheck.exe** | 435 KB | (System) | 🟢 Phase 1: Signature verification ✅ |
+| hashdeep64.exe | 848 KB | (System) | 64-bit alternative (optional) |
+| strings64.exe | 467 KB | (System) | 64-bit alternative (optional) |
+| sigcheck64.exe | 528 KB | (System) | 64-bit alternative (optional) |
 | RUN_ME.bat | 10 KB | (System) | Launcher (don't edit) |
-| collect.ps1 | 21 KB | (System) | Main script (don't edit) |
+| collect.ps1 | 26 KB | (System) | Main script (Phase 1 enabled) |
+| BINS_ORGANIZATION.md | 11 KB | (Docs) | bins/ folder organization |
 | collect.bat | 1 KB | (Legacy) | Old version (reference) |
 | README.md | 3 KB | (Legacy) | Original (keep) |
 
-**Total Documentation:** ~150 KB  
-**Total Scripts:** ~42 KB  
-**Total Licenses:** ~11 KB  
-**Grand Total (without RawCopy):** ~203 KB
+**Total Documentation:** ~200 KB  
+**Total Scripts:** ~52 KB  
+**Total Tools (Core):** ~842 KB  
+**Total Phase 1 Tools (32-bit):** ~1,568 KB  
+**Total Phase 1 Tools (64-bit alternatives):** ~1,844 KB  
+**Total with Phase 1 (32-bit only):** ~2.4 MB ✅  
+**Total with Phase 1 & 64-bit:** ~4.2 MB
+
+---
+
+## 🆕 What's New: Phase 1 Tools Integration
+
+### ✅ Added Files (Tools Installed):
+- ✅ **hashdeep.exe** (771 KB) - SHA256 hash generation tool
+- ✅ **strings.exe** (361 KB) - String extraction tool
+- ✅ **sigcheck.exe** (435 KB) - Executable signature verification tool
+- ✅ **hashdeep64.exe** (848 KB) - 64-bit alternative
+- ✅ **strings64.exe** (467 KB) - 64-bit alternative
+- ✅ **sigcheck64.exe** (528 KB) - 64-bit alternative
+
+### ✅ Added Documentation:
+- ✅ **BINS_ORGANIZATION.md** - Tools organization and structure guide
+- ✅ **BINS_EVALUATION_AND_TOOLS.md** - Comprehensive tool evaluation and roadmap
+- ✅ **PHASE_1_TOOLS_INSTALLATION.md** (in bins/) - Installation guide
+- ✅ **hashdeep_LICENSE.txt** - Public Domain license
+- ✅ **SysInternals_LICENSE.txt** - SysInternals tools license
+
+### ✅ Updated Files:
+- ✅ **collect.ps1** - Integrated Phase 1 tool execution
+  - Hash verification (SHA256 manifest generation)
+  - Executable signature verification
+  - String extraction from artifacts
+  - Comprehensive logging for tool execution
+- ✅ **MANIFEST.md** - Updated with tool sizes and status
+
+### Phase 1 Tool Capabilities:
+- **hashdeep.exe** - Generate SHA256 hashes of all collected files for chain of custody
+- **strings.exe** - Extract readable strings from registry hives and binaries
+- **sigcheck.exe** - Verify digital signatures of collected executables
 
 ---
 
 ## ✅ Checklist: Before USB Deployment
 
-- [ ] USB contains all required files
-  - [ ] RUN_ME.bat
-  - [ ] collect.ps1
-  - [ ] bins/RawCopy.exe
-  - [ ] LICENSE
-- [ ] Documentation files present
-  - [ ] All .md files
-  - [ ] All .txt files
+- [x] Phase 1 tools downloaded and installed
+  - [x] hashdeep.exe (771 KB) ✅
+  - [x] strings.exe (361 KB) ✅
+  - [x] sigcheck.exe (435 KB) ✅
+  - [x] 64-bit alternatives available
+- [x] All documentation present
+  - [x] BINS_ORGANIZATION.md
+  - [x] BINS_EVALUATION_AND_TOOLS.md
+  - [x] All license files
+- [x] USB contains all required files
+  - [x] RUN_ME.bat
+  - [x] collect.ps1 (Phase 1 enabled)
+  - [x] bins/ folder with all tools
+  - [x] All documentation files
+  - [x] LICENSE
+- [ ] Ready for testing on Windows Server 2016+
+- [ ] Ready for production deployment
+- [ ] Phase 1 tools downloaded
+  - [ ] hashdeep.exe in bins/
+  - [ ] strings.exe in bins/
+  - [ ] sigcheck.exe in bins/
 - [ ] Print for sysadmin ready
   - [ ] QUICK_START.txt
   - [ ] SYSADMIN_DEPLOYMENT_GUIDE.md
 - [ ] You've read
-  - [ ] 00_START_HERE.md
+```  - [ ] 00_START_HERE.md
   - [ ] QUICK_REFERENCE.md
 - [ ] Target server documented
   - [ ] Server name
