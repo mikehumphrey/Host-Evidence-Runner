@@ -1,0 +1,11 @@
+# Ignore files from the ZimmermanTools suite that are large, are metadata, or are common output formats.
+# The goal is to keep the tool executables and their essential dependencies while ignoring non-essential files.
+
+# Ignore the remote file details CSV from the Get-ZimmermanTools.ps1 downloader script.
+optional/ZimmermanTools/!!!RemoteFileDetails.csv
+
+# Ignore the large GeoIP database. It can be re-downloaded if needed by running the downloader script again.
+optional/ZimmermanTools/net9/iisGeolocate/GeoLite2-City.mmdb
+
+# Ignore common log file outputs that might be accidentally created in this directory.
+optional/ZimmermanTools/*.log
