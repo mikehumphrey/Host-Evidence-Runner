@@ -23,8 +23,8 @@ param(
 )
 
 # Construct the full path to the module
-$PSScriptRoot = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
-$modulePath = Join-Path $PSScriptRoot "..\modules\CadoBatchAnalysis\CadoBatchAnalysis.psd1"
+$scriptRoot = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
+$modulePath = Join-Path $scriptRoot "..\modules\CadoBatchAnalysis\CadoBatchAnalysis.psd1"
 
 try {
     # Import the module. Using -Force to ensure the latest version is loaded in case of changes.

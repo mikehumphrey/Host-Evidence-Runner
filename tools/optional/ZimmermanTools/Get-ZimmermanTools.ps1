@@ -379,7 +379,7 @@ while ($matchdetails.Success)
 		$response = Invoke-WebRequest @IWRProxyConfig -Uri $newUrl -UseBasicParsing -Method Head -ErrorAction Stop
 		$headers = $response.Headers
 	} catch {
-		if ($_.Exception.Response -ne $null) {
+		if ($null -ne $_.Exception.Response) {
 			$statusCode = $_.Exception.Response.StatusCode.value__
 			Write-Color -Text "* ", "HTTP error $statusCode for URL: $newUrl" -Color Yellow, Red
 			continue

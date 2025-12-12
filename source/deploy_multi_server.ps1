@@ -41,9 +41,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$sourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptPath = Split-Path -Parent $sourceDir
 $investigationPath = Join-Path $scriptPath "investigations"
-$collectScript = Join-Path $scriptPath "source\collect.ps1"
+$collectScript = Join-Path $sourceDir "collect.ps1"
 
 # ============================================================================
 # Initialize Investigation Folder
@@ -149,9 +150,24 @@ foreach ($target in $Targets) {
             # Local collection
             Write-Host "→ Local collection (current computer)" -ForegroundColor Yellow
             
-            # Run collect.ps1 with result path override
-            $collectionCmd = "& `"$collectScript`" -OutputPath `"$resultFolder`""
-            Invoke-Expression $collectionCmd
+            # Run collect.ps1 (uses hardcoded output paths)
+            & $collectScript
+            
+            # Copy results from source directory to result folder
+            Write-Host "  • Copying results to investigation folder..." -ForegroundColor Gray
+            
+            # Create collected_files directory
+            $collectedDir = Join-Path $resultFolder "collected_files"
+            New-Item -ItemType Directory -Path $collectedDir -Force -ErrorAction SilentlyContinue | Out-Null
+            
+            # Copy collected artifacts
+            $sourceCollected = Join-Path $sourceDir "collected_files"
+            if (Test-Path $sourceCollected) {
+                Copy-Item -Path "$sourceCollected\*" -Destination $collectedDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            
+            # Copy collection log
+            Copy-Item -Path "$sourceDir\logs\forensic_collection_*.txt" -Destination $resultFolder -Force -ErrorAction SilentlyContinue
         } else {
             # Remote collection
             Write-Host "→ Remote collection (via PowerShell Remoting)" -ForegroundColor Yellow
@@ -166,33 +182,47 @@ foreach ($target in $Targets) {
                     New-PSSession -ComputerName $target -ErrorAction Stop
                 }
                 
-                $tempDir = [System.IO.Path]::GetTempPath()
                 $remoteTempDir = Invoke-Command -Session $session -ScriptBlock { [System.IO.Path]::GetTempPath() }
+                $remoteSourceDir = Join-Path $remoteTempDir "cado_batch"
                 
-                Copy-Item -Path $collectScript -Destination "$remoteTempDir\collect.ps1" -ToSession $session -ErrorAction Stop
-                Copy-Item -Path "$scriptPath\tools\bins\*" -Destination "$remoteTempDir\bins\" -ToSession $session -ErrorAction Stop -Recurse
+                # Create directories on remote
+                Invoke-Command -Session $session -ScriptBlock {
+                    param([string]$dir, [string]$binsDir)
+                    New-Item -ItemType Directory -Path $dir -Force -ErrorAction SilentlyContinue | Out-Null
+                    New-Item -ItemType Directory -Path $binsDir -Force -ErrorAction SilentlyContinue | Out-Null
+                } -ArgumentList $remoteSourceDir, (Join-Path $remoteSourceDir "bins")
+                
+                Copy-Item -Path "$sourceDir\collect.ps1" -Destination "$remoteSourceDir\collect.ps1" -ToSession $session -ErrorAction Stop
+                Copy-Item -Path "$scriptPath\tools\bins\*" -Destination "$remoteSourceDir\bins\" -ToSession $session -ErrorAction Stop -Recurse
                 
                 # Run collection on remote
                 Write-Host "  • Executing collection on $target..." -ForegroundColor Gray
                 
-                $remoteCmd = "& $remoteTempDir\collect.ps1 -OutputPath $remoteTempDir\cado_collection"
                 Invoke-Command -Session $session -ScriptBlock {
-                    param([string]$cmd)
-                    Invoke-Expression $cmd
-                } -ArgumentList $remoteCmd -ErrorAction Stop
+                    param([string]$sourceDir)
+                    Set-Location $sourceDir
+                    & ".\collect.ps1"
+                } -ArgumentList $remoteSourceDir -ErrorAction Stop
                 
                 # Copy results back
                 Write-Host "  • Retrieving results from $target..." -ForegroundColor Gray
-                Copy-Item -Path "$remoteTempDir\cado_collection\*" -Destination $resultFolder -FromSession $session -Recurse -ErrorAction Stop
-                Copy-Item -Path "$remoteTempDir\forensic_collection_*.txt" -Destination $resultFolder -FromSession $session -ErrorAction Stop
+                $remoteCollected = Join-Path $remoteSourceDir "collected_files"
+                
+                # Copy collected artifacts
+                if (Invoke-Command -Session $session -ScriptBlock { param([string]$p); Test-Path $p } -ArgumentList $remoteCollected) {
+                    $collectedDir = Join-Path $resultFolder "collected_files"
+                    New-Item -ItemType Directory -Path $collectedDir -Force -ErrorAction SilentlyContinue | Out-Null
+                    Copy-Item -Path "$remoteCollected\*" -Destination $collectedDir -FromSession $session -Recurse -ErrorAction Stop
+                }
+                
+                # Copy collection log
+                Copy-Item -Path "$remoteSourceDir\logs\forensic_collection_*.txt" -Destination $resultFolder -FromSession $session -ErrorAction SilentlyContinue
                 
                 # Cleanup remote
                 Invoke-Command -Session $session -ScriptBlock {
-                    param([string]$temp)
-                    Remove-Item -Path "$temp\cado_collection" -Recurse -Force -ErrorAction SilentlyContinue
-                    Remove-Item -Path "$temp\collect.ps1" -Force -ErrorAction SilentlyContinue
-                    Remove-Item -Path "$temp\bins" -Recurse -Force -ErrorAction SilentlyContinue
-                } -ArgumentList $remoteTempDir
+                    param([string]$sourceDir)
+                    Remove-Item -Path $sourceDir -Recurse -Force -ErrorAction SilentlyContinue
+                } -ArgumentList $remoteSourceDir
                 
                 Remove-PSSession $session
             } catch {

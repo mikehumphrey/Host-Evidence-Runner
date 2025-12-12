@@ -170,20 +170,20 @@ try {
     Start-Process -FilePath ".\bins\RawCopy.exe" -ArgumentList "/FileNamePath:C:0" -Wait -NoNewWindow
     Start-Process -FilePath ".\bins\RawCopy.exe" -ArgumentList "/FileNamePath:c:\$LogFile" -Wait -NoNewWindow
 
-    Move-Item -Path ".\bins\$MFT" -Destination ".\$outputDir\MFT_C.bin" -Force -ErrorAction SilentlyContinue
-    Move-Item -Path ".\bins\$LogFile" -Destination ".\$outputDir\LogFile_C.bin" -Force -ErrorAction SilentlyContinue
+    Move-Item -Path ".\bins\$MFT" -Destination "$outputDir\MFT_C.bin" -Force -ErrorAction SilentlyContinue
+    Move-Item -Path ".\bins\$LogFile" -Destination "$outputDir\LogFile_C.bin" -Force -ErrorAction SilentlyContinue
     Write-Host "Successfully collected MFT and LogFile."
     Write-Log "Successfully collected MFT and LogFile."
 
     Write-Verbose "Collecting EVTX files..."
     Write-Log "Collecting EVTX files..."
-    Copy-Item -Path "$env:SystemRoot\System32\winevt\logs\*.evtx" -Destination ".\$outputDir\" -Recurse -Force
+    Copy-Item -Path "$env:SystemRoot\System32\winevt\logs\*.evtx" -Destination "$outputDir\" -Recurse -Force
     Write-Host "Successfully collected EVTX files."
     Write-Log "Successfully collected EVTX files."
 
     Write-Verbose "Collecting System Registry hives..."
     Write-Log "Collecting System Registry hives..."
-    robocopy "$env:SystemRoot\System32\Config" ".\$outputDir\Registry" /E /R:1 /W:1 | Out-Null
+    robocopy "$env:SystemRoot\System32\Config" "$outputDir\Registry" /E /R:1 /W:1 | Out-Null
     Write-Host "Successfully collected System Registry hives."
     Write-Log "Successfully collected System Registry hives."
 
@@ -201,7 +201,7 @@ try {
     Write-Verbose "Collecting Windows Scheduled Tasks..."
     $tasksPath = Join-Path $env:SystemRoot "System32\Tasks"
     if (Test-Path $tasksPath) {
-        robocopy $tasksPath ".\$outputDir\ScheduledTasks" /E /R:1 /W:1 | Out-Null
+        robocopy $tasksPath "$outputDir\ScheduledTasks" /E /R:1 /W:1 | Out-Null
         Write-Host "Successfully collected scheduled tasks."
     }
 
@@ -257,7 +257,7 @@ try {
     Write-Verbose "Collecting USN Journal (\$UsnJrnl)"
     Start-Process -FilePath ".\bins\RawCopy.exe" -ArgumentList "/FileNamePath:C:\$Extend\$UsnJrnl" -Wait -NoNewWindow
     if (Test-Path ".\bins\$UsnJrnl") {
-        Move-Item -Path ".\bins\$UsnJrnl" -Destination ".\$outputDir\UsnJrnl_C.bin" -Force
+        Move-Item -Path ".\bins\$UsnJrnl" -Destination "$outputDir\UsnJrnl_C.bin" -Force
         Write-Host "Successfully collected USN Journal."
     } else {
         Write-Warning "Could not find the collected USN Journal. RawCopy may have failed."
@@ -349,7 +349,7 @@ try {
     Write-Host "Successfully collected user-specific artifacts."
 
     Write-Verbose "Listing root directory of C: drive"
-    Get-ChildItem -Path "$env:SystemDrive\" | Out-File -FilePath ".\$outputDir\C_Dir.txt"
+    Get-ChildItem -Path "$env:SystemDrive\" | Out-File -FilePath "$outputDir\C_Dir.txt"
     Write-Host "Successfully listed C:\ root directory."
 
     Write-Verbose "Collecting network and connection artifacts..."
@@ -361,7 +361,7 @@ try {
         $rdpServers = Get-Item -Path $rdpRegPath | Select-Object -ExpandProperty Property
         if ($rdpServers) {
             $rdpServers | ForEach-Object {
-                Add-Content -Path ".\$outputDir\RDP_ConnectionHistory.txt" -Value "$_"
+                Add-Content -Path "$outputDir\RDP_ConnectionHistory.txt" -Value "$_"
             }
             Write-Verbose "    - Collected RDP connection history"
         }
@@ -369,9 +369,9 @@ try {
 
     # Network configuration (ipconfig, etc.)
     Write-Verbose "  - Collecting network configuration..."
-    ipconfig /all | Out-File -FilePath ".\$outputDir\Network_IPConfig.txt"
-    Get-NetAdapter | Out-File -FilePath ".\$outputDir\Network_Adapters.txt"
-    Get-NetRoute | Out-File -FilePath ".\$outputDir\Network_Routes.txt"
+    ipconfig /all | Out-File -FilePath "$outputDir\Network_IPConfig.txt"
+    Get-NetAdapter | Out-File -FilePath "$outputDir\Network_Adapters.txt"
+    Get-NetRoute | Out-File -FilePath "$outputDir\Network_Routes.txt"
     Write-Verbose "    - Collected network configuration"
 
     # WiFi Profiles
@@ -379,7 +379,7 @@ try {
     try {
         $wifiProfiles = netsh wlan show profile | Select-String "All User Profile" | ForEach-Object { $_.Line.Split(":")[1].Trim() }
         if ($wifiProfiles) {
-            $wifiProfiles | Out-File -FilePath ".\$outputDir\WiFi_Profiles.txt"
+            $wifiProfiles | Out-File -FilePath "$outputDir\WiFi_Profiles.txt"
             Write-Verbose "    - Collected WiFi profiles"
         }
     } catch {
@@ -391,7 +391,7 @@ try {
     $usbRegPath = "Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\USBSTOR"
     if (Test-Path $usbRegPath) {
         Get-Item -Path $usbRegPath | Get-ChildItem | ForEach-Object {
-            Get-ItemProperty -Path $_.PSPath | Select-Object PSChildName, FriendlyName | Out-File -FilePath ".\$outputDir\USB_DeviceHistory.txt" -Append
+            Get-ItemProperty -Path $_.PSPath | Select-Object PSChildName, FriendlyName | Out-File -FilePath "$outputDir\USB_DeviceHistory.txt" -Append
         }
         Write-Verbose "    - Collected USB device history"
     }
@@ -413,7 +413,7 @@ try {
     if (Test-Path $hashdeepPath) {
         try {
             Write-Verbose "  - Running hashdeep.exe on collected files"
-            & $hashdeepPath -r -c sha256 ".\$outputDir" | Out-File -FilePath ".\$outputDir\SHA256_MANIFEST.txt" -ErrorAction Stop
+            & $hashdeepPath -r -c sha256 "$outputDir" | Out-File -FilePath "$outputDir\SHA256_MANIFEST.txt" -ErrorAction Stop
             Write-Host "Successfully generated SHA256 manifest."
             Write-Log "SHA256 manifest created: $outputDir\SHA256_MANIFEST.txt"
         } catch {
@@ -853,7 +853,7 @@ try {
     }
     Write-Verbose "Compressing collected files into $zipFile"
     Write-Log "Compressing collected files for transport"
-    Compress-Archive -Path ".\$outputDir\*" -DestinationPath $zipFile -ErrorAction Stop
+    Compress-Archive -Path "$outputDir\*" -DestinationPath $zipFile -ErrorAction Stop
     Write-Host "Successfully compressed files to $zipFile."
     Write-Log "Files compressed to: $zipFile"
 
