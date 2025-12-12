@@ -1,0 +1,74 @@
+# QUICK START CARD - Forensic Collection Tool
+
+**Print this or save to your phone**
+
+---
+
+## 3 EASY STEPS
+
+### 1. PLUG IN USB
+- Insert USB drive into server
+
+### 2. RUN TOOL
+- Open File Explorer
+- Find USB drive folder
+- **Double-click `RUN_ME.bat`**
+- Click "Yes" if Windows asks
+
+### 3. WAIT & RETURN
+- Watch progress window
+- Takes 15-30 minutes
+- When done, take USB back
+- Return folder to analyst
+
+---
+
+## TROUBLESHOOTING
+
+**Error: "Administrator Required"**
+→ Right-click RUN_ME.bat → Run as administrator
+
+**Error: "PowerShell Disabled"**
+→ Contact IT - PowerShell needed
+
+**Window Closes Quickly**
+→ Run Command Prompt as admin → Go to USB → Type: RUN_ME.bat
+
+**Takes Too Long (>1 hour)**
+→ Normal on large servers - let it finish
+
+**Antivirus Warning**
+→ Safe to allow - only reads files
+
+---
+
+## AFTER COMPLETION
+
+1. ✓ Disconnect USB from server
+2. ✓ Connect USB to your computer
+3. ✓ Copy folder `collected_files_*` 
+4. ✓ Copy file `FORENSIC_COLLECTION_LOG.txt`
+5. ✓ Send both to analyst
+
+---
+
+## FILE YOU'RE RETURNING
+
+Folder name looks like:
+```
+collected_files_DC01_20251212_143022
+```
+
+Contains: System logs, registry, diagnostics, etc.
+
+---
+
+## QUESTIONS?
+
+Check the file: `SYSADMIN_DEPLOYMENT_GUIDE.md`
+
+Or contact the analyst who gave you this tool.
+
+---
+
+**That's it! You're done!**

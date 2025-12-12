@@ -5,32 +5,187 @@ param()
 $ErrorActionPreference = 'Stop'
 $scriptPath = $PSScriptRoot
 
+# ============================================================================
+# Initialize Logging
+# ============================================================================
+
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$computerName = $env:COMPUTERNAME
+$logFile = Join-Path $scriptPath "logs\forensic_collection_${computerName}_${timestamp}.txt"
+
+# Ensure logs directory exists
+$logsDir = Join-Path $scriptPath "logs"
+if (-not (Test-Path $logsDir)) {
+    New-Item -ItemType Directory -Path $logsDir | Out-Null
+}
+
+# Function to write log entries
+function Write-Log {
+    param(
+        [string]$Message,
+        [ValidateSet('Info', 'Warning', 'Error')]
+        [string]$Level = 'Info'
+    )
+    
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] [$Level] $Message"
+    
+    # Write to log file
+    Add-Content -Path $logFile -Value $logEntry
+    
+    # Also write to console
+    switch ($Level) {
+        'Error' { Write-Host $logEntry -ForegroundColor Red }
+        'Warning' { Write-Host $logEntry -ForegroundColor Yellow }
+        'Info' { Write-Host $logEntry -ForegroundColor Green }
+    }
+}
+
+# Start logging
+Write-Log "============================================================================"
+Write-Log "Forensic Collection Tool - Collection Started"
+Write-Log "============================================================================"
+Write-Log "Computer: $computerName"
+Write-Log "User: $env:USERNAME"
+Write-Log "Script Location: $scriptPath"
+Write-Log "PowerShell Version: $($PSVersionTable.PSVersion)"
+Write-Log "OS Version: $([System.Environment]::OSVersion)"
+
+# Function to detect hypervisor/virtualization
+function Get-HypervisorInfo {
+    Write-Log "Detecting hypervisor environment..."
+    
+    try {
+        $systemInfo = Get-WmiObject -Class Win32_ComputerSystem -ErrorAction SilentlyContinue
+        
+        $hypervisor = "Physical Hardware"
+        
+        # Check for common hypervisors
+        if ($systemInfo.Manufacturer -like "*VMware*") {
+            $hypervisor = "VMware vSphere"
+        } elseif ($systemInfo.Manufacturer -like "*Microsoft*" -and $systemInfo.Model -like "*Virtual*") {
+            $hypervisor = "Microsoft Hyper-V"
+        } elseif ($systemInfo.Manufacturer -like "*Xen*") {
+            $hypervisor = "Citrix XenServer"
+        } elseif ($systemInfo.Manufacturer -like "*KVM*") {
+            $hypervisor = "KVM"
+        } elseif ($systemInfo.Manufacturer -like "*QEMU*") {
+            $hypervisor = "QEMU"
+        }
+        
+        # Check for VirtualBox
+        $vboxCheck = Get-WmiObject -Class Win32_PnPSignedDevice -ErrorAction SilentlyContinue | Where-Object {$_.Description -like "*VirtualBox*"}
+        if ($vboxCheck) {
+            $hypervisor = "Oracle VirtualBox"
+        }
+        
+        Write-Log "Hypervisor detected: $hypervisor"
+        Write-Log "System Manufacturer: $($systemInfo.Manufacturer)"
+        Write-Log "System Model: $($systemInfo.Model)"
+        
+        return $hypervisor
+    } catch {
+        Write-Log "Could not determine hypervisor environment: $_" -Level Warning
+        return "Unknown"
+    }
+}
+
+# Function to detect server roles
+function Get-InstalledServerRoles {
+    Write-Log "Detecting installed server roles..."
+    
+    try {
+        $roles = @()
+        
+        # Check for various roles using Get-WindowsFeature (Server 2012+)
+        if (Get-Command Get-WindowsFeature -ErrorAction SilentlyContinue) {
+            $features = Get-WindowsFeature | Where-Object { $_.Installed }
+            
+            if ($features | Where-Object {$_.Name -like "*AD-Domain-Services*"}) {
+                $roles += "Active Directory Domain Services"
+            }
+            if ($features | Where-Object {$_.Name -like "*DNS*" -and $_.Installed}) {
+                $roles += "DNS Server"
+            }
+            if ($features | Where-Object {$_.Name -like "*FS-DFS*"}) {
+                $roles += "DFS"
+            }
+            if ($features | Where-Object {$_.Name -like "*ADCS*"}) {
+                $roles += "Certificate Authority"
+            }
+            if ($features | Where-Object {$_.Name -like "*FS-File-Services*"}) {
+                $roles += "File Services"
+            }
+        }
+        
+        # Fallback: Check services if Get-WindowsFeature unavailable
+        if ($roles.Count -eq 0) {
+            $services = Get-Service -ErrorAction SilentlyContinue
+            
+            if ($services | Where-Object {$_.Name -eq "NTDS"}) {
+                $roles += "Active Directory Domain Services"
+            }
+            if ($services | Where-Object {$_.Name -eq "DNS"}) {
+                $roles += "DNS Server"
+            }
+            if ($services | Where-Object {$_.Name -eq "DFSR"}) {
+                $roles += "DFS"
+            }
+        }
+        
+        if ($roles.Count -eq 0) {
+            $roles += "Standard Server (No Specialized Roles Detected)"
+        }
+        
+        foreach ($role in $roles) {
+            Write-Log "  - Detected role: $role"
+        }
+        
+        return $roles
+    } catch {
+        Write-Log "Error detecting server roles: $_" -Level Warning
+        return @("Unknown")
+    }
+}
+
 try {
     Write-Verbose "Moving to the correct working directory: $scriptPath"
     Set-Location -Path $scriptPath
+    Write-Log "Working directory: $scriptPath"
+    
+    # Detect hypervisor and roles
+    $hypervisor = Get-HypervisorInfo
+    $serverRoles = Get-InstalledServerRoles
 
     $outputDir = "collected_files"
     if (-not (Test-Path -Path $outputDir)) {
         Write-Verbose "Creating output directory: $outputDir"
-        New-Item -ItemType Directory -Name $outputDir
+        Write-Log "Creating output directory: $outputDir"
+        New-Item -ItemType Directory -Name $outputDir | Out-Null
     }
 
     Write-Verbose "Collecting MFT and LogFile from C: drive"
+    Write-Log "Collecting MFT and LogFile from C: drive"
     # Assuming RawCopy.exe is in a 'bins' subdirectory relative to the script
     Start-Process -FilePath ".\bins\RawCopy.exe" -ArgumentList "/FileNamePath:C:0" -Wait -NoNewWindow
     Start-Process -FilePath ".\bins\RawCopy.exe" -ArgumentList "/FileNamePath:c:\$LogFile" -Wait -NoNewWindow
 
-    Move-Item -Path ".\bins\$MFT" -Destination ".\$outputDir\MFT_C.bin" -Force
-    Move-Item -Path ".\bins\$LogFile" -Destination ".\$outputDir\LogFile_C.bin" -Force
+    Move-Item -Path ".\bins\$MFT" -Destination ".\$outputDir\MFT_C.bin" -Force -ErrorAction SilentlyContinue
+    Move-Item -Path ".\bins\$LogFile" -Destination ".\$outputDir\LogFile_C.bin" -Force -ErrorAction SilentlyContinue
     Write-Host "Successfully collected MFT and LogFile."
+    Write-Log "Successfully collected MFT and LogFile."
 
     Write-Verbose "Collecting EVTX files..."
+    Write-Log "Collecting EVTX files..."
     Copy-Item -Path "$env:SystemRoot\System32\winevt\logs\*.evtx" -Destination ".\$outputDir\" -Recurse -Force
     Write-Host "Successfully collected EVTX files."
+    Write-Log "Successfully collected EVTX files."
 
     Write-Verbose "Collecting System Registry hives..."
+    Write-Log "Collecting System Registry hives..."
     robocopy "$env:SystemRoot\System32\Config" ".\$outputDir\Registry" /E /R:1 /W:1 | Out-Null
     Write-Host "Successfully collected System Registry hives."
+    Write-Log "Successfully collected System Registry hives."
 
     Write-Verbose "Collecting additional system artifacts..."
     
@@ -252,8 +407,61 @@ try {
     Write-Host "Successfully compressed files to $zipFile."
 
 } catch {
-    Write-Error "An error occurred: $_"
+    Write-Log "============================================================================" -Level Error
+    Write-Log "CRITICAL ERROR OCCURRED" -Level Error
+    Write-Log "============================================================================" -Level Error
+    Write-Log "Error Message: $_" -Level Error
+    Write-Log "Error Details: $($_.Exception.Message)" -Level Error
+    Write-Log "Script Line: $($_.InvocationInfo.Line)" -Level Error
+    Write-Log "============================================================================" -Level Error
+    
+    Write-Host ""
+    Write-Host "============================================================================" -ForegroundColor Red
+    Write-Host "COLLECTION FAILED WITH ERROR" -ForegroundColor Red
+    Write-Host "============================================================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Error: $_" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "What to do:" -ForegroundColor Yellow
+    Write-Host "1. Read the log file: logs\forensic_collection_$computerName*.txt"
+    Write-Host "2. Note the error message above"
+    Write-Host "3. Send the log file to the analyst who provided this tool"
+    Write-Host ""
+    Write-Host "If collection was partially successful:" -ForegroundColor Yellow
+    Write-Host "- A 'collected_files' folder may still contain some data"
+    Write-Host "- Return what was collected along with the log file"
+    Write-Host ""
+    Write-Host "============================================================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Press any key to close this window..."
+    Read-Host
+    
     exit 1
 }
 
-Write-Host "Collection script finished."
+# ============================================================================
+# Successful Completion
+# ============================================================================
+
+Write-Log "============================================================================"
+Write-Log "Collection Process Completed Successfully"
+Write-Log "============================================================================"
+Write-Log "Output Location: $outputDir"
+Write-Log "Log File: $logFile"
+
+Write-Host ""
+Write-Host "============================================================================" -ForegroundColor Green
+Write-Host "COLLECTION COMPLETE!" -ForegroundColor Green
+Write-Host "============================================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "Collected data location: $outputDir" -ForegroundColor Green
+Write-Host "Log file: $logFile" -ForegroundColor Green
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor Yellow
+Write-Host "1. Disconnect USB from server"
+Write-Host "2. Copy '$outputDir' folder to return to analyst"
+Write-Host "3. Also copy log file to provide to analyst"
+Write-Host "4. Contact analyst to confirm receipt"
+Write-Host ""
+Write-Host "============================================================================" -ForegroundColor Green
+Write-Host ""
