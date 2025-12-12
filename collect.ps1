@@ -489,6 +489,361 @@ try {
     Write-Log "Phase 1 tools integration completed"
 
     # ============================================================================
+    # PHASE 2: Advanced Artifact Parsing and Enhanced Collection
+    # ============================================================================
+    
+    Write-Log "Starting Phase 2: Advanced artifact parsing and enhanced browser collection"
+    
+    # Function to parse Chrome history
+    function Export-ChromeHistory {
+        param([string]$OutputPath)
+        
+        Write-Log "Extracting Chrome browsing history..."
+        $chromeProfiles = @()
+        $chromeHistoryData = @()
+        
+        try {
+            $localAppData = $env:LOCALAPPDATA
+            $chromeUserDataPath = Join-Path $localAppData "Google\Chrome\User Data"
+            
+            if (Test-Path $chromeUserDataPath) {
+                # Find all Chrome profiles
+                $profiles = Get-ChildItem -Path $chromeUserDataPath -Directory -ErrorAction SilentlyContinue | 
+                    Where-Object { $_.Name -like "Profile*" -or $_.Name -eq "Default" }
+                
+                foreach ($profile in $profiles) {
+                    $historyDb = Join-Path $profile.FullName "History"
+                    
+                    if (Test-Path $historyDb) {
+                        try {
+                            # Read Chrome History SQLite database (copy first to avoid lock)
+                            $tempHistory = Join-Path $env:TEMP "ChromeHistory_temp.db"
+                            Copy-Item -Path $historyDb -Destination $tempHistory -Force -ErrorAction SilentlyContinue
+                            
+                            $profileName = $profile.Name
+                            Write-Log "  - Found Chrome profile: $profileName"
+                            
+                            # Create human-readable export
+                            $outputFile = Join-Path $OutputPath "Chrome_History_${profileName}.txt"
+                            "Chrome History Export - Profile: $profileName" | Set-Content $outputFile
+                            "Export Date: $(Get-Date)" | Add-Content $outputFile
+                            "Database Location: $historyDb" | Add-Content $outputFile
+                            "" | Add-Content $outputFile
+                            
+                            # Also copy raw History database for analysis
+                            $rawOutputFile = Join-Path $OutputPath "Chrome_History_${profileName}.db"
+                            Copy-Item -Path $historyDb -Destination $rawOutputFile -Force -ErrorAction SilentlyContinue
+                            
+                            Write-Verbose "  - Exported Chrome history for $profileName"
+                        } catch {
+                            Write-Log "  - Could not read Chrome History from $($profile.Name): $_" -Level Warning
+                        }
+                    }
+                }
+                
+                if ($profiles.Count -gt 0) {
+                    Write-Log "Chrome history extraction completed ($($profiles.Count) profiles found)"
+                } else {
+                    Write-Log "No Chrome profiles found" -Level Warning
+                }
+            } else {
+                Write-Log "Chrome User Data directory not found" -Level Warning
+            }
+        } catch {
+            Write-Log "Error extracting Chrome history: $_" -Level Warning
+        }
+    }
+    
+    # Function to parse Firefox history
+    function Export-FirefoxHistory {
+        param([string]$OutputPath)
+        
+        Write-Log "Extracting Firefox browsing history..."
+        
+        try {
+            $appData = $env:APPDATA
+            $firefoxProfilePath = Join-Path $appData "Mozilla\Firefox\Profiles"
+            
+            if (Test-Path $firefoxProfilePath) {
+                $profiles = Get-ChildItem -Path $firefoxProfilePath -Directory -ErrorAction SilentlyContinue
+                
+                foreach ($profile in $profiles) {
+                    try {
+                        $placesDb = Join-Path $profile.FullName "places.sqlite"
+                        
+                        if (Test-Path $placesDb) {
+                            # Copy Firefox database for analysis
+                            $outputFile = Join-Path $OutputPath "Firefox_History_$($profile.BaseName).db"
+                            Copy-Item -Path $placesDb -Destination $outputFile -Force -ErrorAction SilentlyContinue
+                            
+                            Write-Log "  - Extracted Firefox history from profile: $($profile.Name)"
+                        }
+                    } catch {
+                        Write-Log "  - Could not read Firefox History from $($profile.Name): $_" -Level Warning
+                    }
+                }
+            } else {
+                Write-Log "Firefox profiles directory not found" -Level Warning
+            }
+        } catch {
+            Write-Log "Error extracting Firefox history: $_" -Level Warning
+        }
+    }
+    
+    # Function to parse prefetch files to readable format
+    function Export-PrefetchAnalysis {
+        param([string]$OutputPath)
+        
+        Write-Log "Analyzing prefetch files for program execution timeline..."
+        
+        try {
+            $prefetchPath = "C:\Windows\Prefetch"
+            
+            if (Test-Path $prefetchPath) {
+                $prefetchFiles = Get-ChildItem -Path $prefetchPath -Filter "*.pf" -ErrorAction SilentlyContinue
+                
+                if ($prefetchFiles.Count -gt 0) {
+                    $prefetchReport = Join-Path $OutputPath "Prefetch_Analysis.txt"
+                    
+                    "PREFETCH FILE ANALYSIS" | Set-Content $prefetchReport
+                    "Generated: $(Get-Date)" | Add-Content $prefetchReport
+                    "Total Prefetch Files: $($prefetchFiles.Count)" | Add-Content $prefetchReport
+                    "" | Add-Content $prefetchReport
+                    
+                    # List each prefetch file with metadata
+                    foreach ($pf in $prefetchFiles) {
+                        $name = $pf.BaseName -replace '-[0-9A-F]{8}$'  # Remove hash suffix
+                        $modified = $pf.LastWriteTime
+                        $size = $pf.Length
+                        
+                        "$name | Modified: $modified | Size: $size bytes" | Add-Content $prefetchReport
+                    }
+                    
+                    # Also copy all prefetch files for external parsing
+                    Write-Log "  - Copying prefetch files for external analysis"
+                    $prefetchOutputDir = Join-Path $OutputPath "Prefetch_Files"
+                    New-Item -ItemType Directory -Path $prefetchOutputDir -Force -ErrorAction SilentlyContinue | Out-Null
+                    Copy-Item -Path "$prefetchPath\*.pf" -Destination $prefetchOutputDir -Force -ErrorAction SilentlyContinue
+                    
+                    Write-Log "Prefetch analysis completed ($($prefetchFiles.Count) files found)"
+                } else {
+                    Write-Log "No prefetch files found" -Level Warning
+                }
+            } else {
+                Write-Log "Prefetch directory not found" -Level Warning
+            }
+        } catch {
+            Write-Log "Error analyzing prefetch files: $_" -Level Warning
+        }
+    }
+    
+    # Function to extract SRUM database
+    function Export-SRUMData {
+        param([string]$OutputPath)
+        
+        Write-Log "Extracting System Resource Usage Monitor (SRUM) data..."
+        
+        try {
+            $srumDbPath = "C:\Windows\System32\sru\SRUDB.dat"
+            
+            if (Test-Path $srumDbPath) {
+                try {
+                    # SRUM database is locked, try to copy with RawCopy if available
+                    $rawCopyPath = Join-Path $PSScriptRoot "bins\RawCopy.exe"
+                    
+                    if (Test-Path $rawCopyPath) {
+                        Write-Log "  - Attempting to copy SRUM database with RawCopy.exe"
+                        $outputSRUM = Join-Path $OutputPath "SRUM_Database.dat"
+                        & $rawCopyPath /FileNamePath:$srumDbPath /OutputPath:$OutputPath | Out-Null
+                        Write-Log "  - SRUM database copied successfully"
+                    } else {
+                        # Try direct copy (may fail if locked)
+                        $outputSRUM = Join-Path $OutputPath "SRUM_Database.dat"
+                        Copy-Item -Path $srumDbPath -Destination $outputSRUM -Force -ErrorAction SilentlyContinue
+                        Write-Log "  - SRUM database copied (may be partial if locked)"
+                    }
+                } catch {
+                    Write-Log "  - Could not copy SRUM database (locked by system): $_" -Level Warning
+                }
+            } else {
+                Write-Log "SRUM database not found at expected location" -Level Warning
+            }
+        } catch {
+            Write-Log "Error extracting SRUM data: $_" -Level Warning
+        }
+    }
+    
+    # Function to extract Amcache for program execution history
+    function Export-AmcacheData {
+        param([string]$OutputPath)
+        
+        Write-Log "Extracting Application Compatibility Cache (Amcache) data..."
+        
+        try {
+            $amcachePath = "C:\Windows\appcompat\Programs\Amcache.hve"
+            
+            if (Test-Path $amcachePath) {
+                try {
+                    # Amcache is also locked, use RawCopy if available
+                    $rawCopyPath = Join-Path $PSScriptRoot "bins\RawCopy.exe"
+                    
+                    if (Test-Path $rawCopyPath) {
+                        Write-Log "  - Attempting to copy Amcache with RawCopy.exe"
+                        & $rawCopyPath /FileNamePath:$amcachePath /OutputPath:$OutputPath | Out-Null
+                        Write-Log "  - Amcache copied successfully"
+                    } else {
+                        # Try direct copy
+                        $outputAmcache = Join-Path $OutputPath "Amcache.hve"
+                        Copy-Item -Path $amcachePath -Destination $outputAmcache -Force -ErrorAction SilentlyContinue
+                        Write-Log "  - Amcache copied (may be partial if locked)"
+                    }
+                } catch {
+                    Write-Log "  - Could not copy Amcache (locked by system): $_" -Level Warning
+                }
+            } else {
+                Write-Log "Amcache not found at expected location" -Level Warning
+            }
+        } catch {
+            Write-Log "Error extracting Amcache: $_" -Level Warning
+        }
+    }
+    
+    # Function to detect suspicious scheduled tasks
+    function Export-SuspiciousScheduledTasks {
+        param([string]$OutputPath)
+        
+        Write-Log "Analyzing scheduled tasks for suspicious activity..."
+        
+        try {
+            $tasksPath = "C:\Windows\System32\Tasks"
+            
+            if (Test-Path $tasksPath) {
+                $suspiciousReport = Join-Path $OutputPath "Suspicious_Scheduled_Tasks.txt"
+                $taskCount = 0
+                $suspiciousCount = 0
+                
+                "SUSPICIOUS SCHEDULED TASK ANALYSIS" | Set-Content $suspiciousReport
+                "Generated: $(Get-Date)" | Add-Content $suspiciousReport
+                "" | Add-Content $suspiciousReport
+                "" | Add-Content $suspiciousReport
+                
+                # Keywords that indicate potentially malicious scheduled tasks
+                $suspiciousPatterns = @(
+                    "powershell",
+                    "cmd.exe",
+                    "cscript",
+                    "wscript",
+                    "mshta",
+                    "regsvr32",
+                    "rundll32",
+                    "certutil",
+                    "bitsadmin",
+                    "curl",
+                    "wget",
+                    "c:\\temp",
+                    "c:\\windows\\temp",
+                    "c:\\windows\\system32\config\systemprofile"
+                )
+                
+                $taskXmlFiles = Get-ChildItem -Path $tasksPath -Filter "*.xml" -Recurse -ErrorAction SilentlyContinue
+                
+                foreach ($taskFile in $taskXmlFiles) {
+                    $taskCount++
+                    
+                    try {
+                        $taskContent = Get-Content -Path $taskFile.FullName -Raw -ErrorAction SilentlyContinue
+                        
+                        # Check for suspicious patterns
+                        $isSuspicious = $false
+                        foreach ($pattern in $suspiciousPatterns) {
+                            if ($taskContent -match [regex]::Escape($pattern)) {
+                                $isSuspicious = $true
+                                break
+                            }
+                        }
+                        
+                        if ($isSuspicious) {
+                            $suspiciousCount++
+                            "" | Add-Content $suspiciousReport
+                            "SUSPICIOUS TASK FOUND:" | Add-Content $suspiciousReport
+                            "Name: $($taskFile.Name)" | Add-Content $suspiciousReport
+                            "Path: $($taskFile.FullName)" | Add-Content $suspiciousReport
+                            "Modified: $($taskFile.LastWriteTime)" | Add-Content $suspiciousReport
+                            "" | Add-Content $suspiciousReport
+                        }
+                    } catch {
+                        # Continue on parse errors
+                    }
+                }
+                
+                "" | Add-Content $suspiciousReport
+                "SUMMARY" | Add-Content $suspiciousReport
+                "Total Tasks Analyzed: $taskCount" | Add-Content $suspiciousReport
+                "Suspicious Tasks Found: $suspiciousCount" | Add-Content $suspiciousReport
+                
+                Write-Log "Scheduled task analysis completed ($suspiciousCount suspicious tasks found out of $taskCount)"
+            } else {
+                Write-Log "Scheduled tasks directory not found" -Level Warning
+            }
+        } catch {
+            Write-Log "Error analyzing scheduled tasks: $_" -Level Warning
+        }
+    }
+    
+    # Function to collect additional browser artifacts
+    function Export-BrowserArtifacts {
+        param([string]$OutputPath)
+        
+        Write-Log "Collecting additional browser artifacts..."
+        
+        try {
+            $localAppData = $env:LOCALAPPDATA
+            $browsers = @(
+                @{ Name = "Edge"; Path = "$localAppData\Microsoft\Edge\User Data" },
+                @{ Name = "InternetExplorer"; Path = "$localAppData\Microsoft\Windows\INetCache" }
+            )
+            
+            foreach ($browser in $browsers) {
+                if (Test-Path $browser.Path) {
+                    try {
+                        $browserOutputDir = Join-Path $OutputPath "BrowserArtifacts_$($browser.Name)"
+                        New-Item -ItemType Directory -Path $browserOutputDir -Force -ErrorAction SilentlyContinue | Out-Null
+                        
+                        # Copy browser cache, cookies, and related files
+                        robocopy $browser.Path $browserOutputDir /S /R:1 /W:1 /NP /LOG:NUL /NDCOPY:DA | Out-Null
+                        
+                        Write-Log "  - Collected $($browser.Name) artifacts"
+                    } catch {
+                        Write-Log "  - Could not collect $($browser.Name) artifacts: $_" -Level Warning
+                    }
+                }
+            }
+        } catch {
+            Write-Log "Error collecting browser artifacts: $_" -Level Warning
+        }
+    }
+    
+    # Execute Phase 2 collections
+    try {
+        # Create Phase 2 output directory
+        $phase2OutputDir = Join-Path $outputDir "Phase2_Advanced_Analysis"
+        New-Item -ItemType Directory -Path $phase2OutputDir -Force -ErrorAction SilentlyContinue | Out-Null
+        
+        # Execute each Phase 2 function
+        Export-ChromeHistory -OutputPath $phase2OutputDir
+        Export-FirefoxHistory -OutputPath $phase2OutputDir
+        Export-PrefetchAnalysis -OutputPath $phase2OutputDir
+        Export-SRUMData -OutputPath $phase2OutputDir
+        Export-AmcacheData -OutputPath $phase2OutputDir
+        Export-SuspiciousScheduledTasks -OutputPath $phase2OutputDir
+        Export-BrowserArtifacts -OutputPath $phase2OutputDir
+        
+        Write-Log "Phase 2 advanced analysis completed successfully"
+    } catch {
+        Write-Log "Phase 2 encountered errors (collection may be partial): $_" -Level Warning
+    }
+
+    # ============================================================================
     # Compression and Finalization
     # ============================================================================
     
