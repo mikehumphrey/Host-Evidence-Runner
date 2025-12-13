@@ -9,7 +9,11 @@
     Description = 'A module for post-collection forensic analysis of data gathered by Cado-Batch.'
     PowerShellVersion = '5.1'
     FunctionsToExport = @(
-        'Invoke-YaraScan'
+        'Invoke-YaraScan',
+        'Invoke-EventLogParsing',
+        'Search-EventLogData',
+        'Search-MFTForPaths',
+        'Generate-InvestigationReport'
     )
     CmdletsToExport = @()
     VariablesToExport = '*'

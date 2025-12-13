@@ -63,3 +63,58 @@ For detailed, real-time output of the script's actions, use the `-Verbose` flag:
 ```
 
 This will create a file "collected_files.zip" which can be imported into a forensic processing platform such as Cado Response.
+
+## Phase 3: Post-Collection Analysis
+
+Use `source/Analyze-Investigation.ps1` to analyze a specific investigation folder after collection.
+
+### Prerequisites
+- Zimmerman Tools installed under `tools/optional/ZimmermanTools/` with `net9` preferred (falls back to `net8`/`net6`).
+- .NET Desktop Runtime 9 installed for `net9` tools.
+- Investigation path format: `investigations/<Case>/<Host>/<YYYYMMDD_HHMMSS>`.
+
+### Common Outputs
+- `Phase3_EventLog_Analysis/` with parsed event logs CSV/JSON.
+- `Phase3_Filtered_EventLog_Results.csv` with keyword/pattern filtered events.
+- `Phase3_MFT_Analysis/MFT_Full.csv` with full MFT records.
+- `Phase3_MFT_PathMatches.csv` with matched file/path records from the MFT.
+
+### Examples
+
+Parse event logs:
+
+```powershell
+.\n+source\Analyze-Investigation.ps1 -InvestigationPath "investigations\Case\Host\20250101_120000" -ParseEventLogs -EventLogFormat csv
+```
+
+Search event logs with keywords from a file, filter by Event IDs, and detect suspicious patterns:
+
+```powershell
+.
+source\Analyze-Investigation.ps1 -InvestigationPath "investigations\Case\Host\20250101_120000" `
+    -SearchKeywordsFile "investigations\Case\search_terms_unique.txt" `
+    -FilterEventIDs 4624,4688,7045 `
+    -DetectSuspiciousPatterns
+```
+
+Search the Master File Table (MFT) for paths and filenames:
+
+```powershell
+.
+source\Analyze-Investigation.ps1 -InvestigationPath "investigations\Case\Host\20250101_120000" `
+    -SearchMFTPaths "temp\test_files" `
+    -SearchMFTPathsFile "investigations\Case\search_terms_unique.txt"
+```
+
+Run a Yara scan against collected files using a CSV of filenames and SHA256 hashes:
+
+```powershell
+.
+source\Analyze-Investigation.ps1 -InvestigationPath "investigations\Case\Host\20250101_120000" `
+    -YaraInputFile ".\sensitive_files.csv"
+```
+
+### Notes
+- Tools are auto-detected with preference order: `net9` → `net8` → `net6`.
+- Large datasets are processed in-memory; expect longer runtimes on big hosts.
+- Results are written into the investigation folder alongside `collected_files`.
