@@ -2,6 +2,22 @@
 
 A PowerShell script to collect forensic evidence from modern Windows systems (Windows 10, Windows 11, Server 2016+). This script modernizes the functionality of the original `collect.bat`.
 
+## Release Usage (sysadmin)
+
+1. Download or copy the latest `Cado-Batch-Collector.zip` (built via `Build-Release.ps1`).
+2. Extract to a working folder (e.g., `C:\temp\Cado-Batch` or a USB drive).
+3. Run `run-collector.ps1` as Administrator from the extracted root (or use `RUN_COLLECT.bat` if PowerShell execution policy is restrictive).
+4. The script writes output to `source\collected_files` and logs to `source\logs` within that extracted folder.
+
+### Tool layout (single bins copy)
+- Tools live once under `tools\bins` in the release. The collector auto-resolves tools from `source\bins` (if present) or falls back to `..\tools\bins`, so only one copy is needed.
+- If you relocate tools for any reason, keep the structure intact under `tools\bins` to avoid missing-utility errors.
+
+### Building a release
+- From the repo root, run `pwsh -NoProfile -ExecutionPolicy Bypass -File .\Build-Release.ps1 -Zip`.
+- Output: `releases/<timestamp>/` plus `releases/Cado-Batch-Collector.zip`.
+- Release artifacts in `releases/` are generated and ignored by git; commit the source scripts only.
+
 ## Data Collected
 
 The script collects the following forensic artifacts:

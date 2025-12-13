@@ -51,6 +51,26 @@ Write-Log "Script Location: $scriptPath"
 Write-Log "PowerShell Version: $($PSVersionTable.PSVersion)"
 Write-Log "OS Version: $([System.Environment]::OSVersion)"
 
+# Resolve the bins directory once so tools can live either beside the script
+# (source\bins) or at the release root (tools\bins), keeping a single copy.
+$binCandidates = @(
+    Join-Path $scriptPath 'bins',
+    Join-Path (Split-Path $scriptPath -Parent) 'tools\bins',
+    Join-Path (Split-Path $scriptPath -Parent) 'bins'
+)
+
+$binPath = $binCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $binPath) {
+    throw "Required tools folder not found. Expected one of: $($binCandidates -join ', ')"
+}
+
+function Get-BinFile {
+    param([Parameter(Mandatory)][string]$Name)
+    return (Join-Path $binPath $Name)
+}
+
+Write-Log "Using tools from: $binPath"
+
 # Function to detect hypervisor/virtualization
 function Get-HypervisorInfo {
     Write-Log "Detecting hypervisor environment..."
@@ -166,12 +186,11 @@ try {
 
     Write-Verbose "Collecting MFT and LogFile from C: drive"
     Write-Log "Collecting MFT and LogFile from C: drive"
-    # Assuming RawCopy.exe is in a 'bins' subdirectory relative to the script
-    Start-Process -FilePath ".\bins\RawCopy.exe" -ArgumentList "/FileNamePath:C:0" -Wait -NoNewWindow
-    Start-Process -FilePath ".\bins\RawCopy.exe" -ArgumentList "/FileNamePath:c:\$LogFile" -Wait -NoNewWindow
+    Start-Process -FilePath (Get-BinFile 'RawCopy.exe') -ArgumentList "/FileNamePath:C:0" -Wait -NoNewWindow
+    Start-Process -FilePath (Get-BinFile 'RawCopy.exe') -ArgumentList "/FileNamePath:c:\$LogFile" -Wait -NoNewWindow
 
-    Move-Item -Path ".\bins\$MFT" -Destination "$outputDir\MFT_C.bin" -Force -ErrorAction SilentlyContinue
-    Move-Item -Path ".\bins\$LogFile" -Destination "$outputDir\LogFile_C.bin" -Force -ErrorAction SilentlyContinue
+    Move-Item -Path (Get-BinFile $MFT) -Destination "$outputDir\MFT_C.bin" -Force -ErrorAction SilentlyContinue
+    Move-Item -Path (Get-BinFile $LogFile) -Destination "$outputDir\LogFile_C.bin" -Force -ErrorAction SilentlyContinue
     Write-Host "Successfully collected MFT and LogFile."
     Write-Log "Successfully collected MFT and LogFile."
 
@@ -255,9 +274,9 @@ try {
 
     # Collect USN Journal
     Write-Verbose "Collecting USN Journal (\$UsnJrnl)"
-    Start-Process -FilePath ".\bins\RawCopy.exe" -ArgumentList "/FileNamePath:C:\$Extend\$UsnJrnl" -Wait -NoNewWindow
-    if (Test-Path ".\bins\$UsnJrnl") {
-        Move-Item -Path ".\bins\$UsnJrnl" -Destination "$outputDir\UsnJrnl_C.bin" -Force
+    Start-Process -FilePath (Get-BinFile 'RawCopy.exe') -ArgumentList "/FileNamePath:C:\$Extend\$UsnJrnl" -Wait -NoNewWindow
+    if (Test-Path (Get-BinFile $UsnJrnl)) {
+        Move-Item -Path (Get-BinFile $UsnJrnl) -Destination "$outputDir\UsnJrnl_C.bin" -Force
         Write-Host "Successfully collected USN Journal."
     } else {
         Write-Warning "Could not find the collected USN Journal. RawCopy may have failed."
@@ -409,7 +428,7 @@ try {
     Write-Verbose "Generating SHA256 hash manifest..."
     Write-Log "Generating SHA256 hash manifest for chain of custody"
     
-    $hashdeepPath = Join-Path $scriptPath "bins\hashdeep.exe"
+    $hashdeepPath = Get-BinFile 'hashdeep.exe'
     if (Test-Path $hashdeepPath) {
         try {
             Write-Verbose "  - Running hashdeep.exe on collected files"
@@ -429,7 +448,7 @@ try {
     Write-Verbose "Verifying executable signatures..."
     Write-Log "Verifying executable signatures in collected artifacts"
     
-    $sigcheckPath = Join-Path $scriptPath "bins\sigcheck.exe"
+    $sigcheckPath = Get-BinFile 'sigcheck.exe'
     if (Test-Path $sigcheckPath) {
         try {
             Write-Verbose "  - Running sigcheck.exe on collected executables"
@@ -457,7 +476,7 @@ try {
     Write-Verbose "Extracting readable strings from critical files..."
     Write-Log "Extracting strings from registry hives for analysis"
     
-    $stringsPath = Join-Path $scriptPath "bins\strings.exe"
+    $stringsPath = Get-BinFile 'strings.exe'
     if (Test-Path $stringsPath) {
         try {
             Write-Verbose "  - Running strings.exe on registry hives"
@@ -649,7 +668,7 @@ try {
             if (Test-Path $srumDbPath) {
                 try {
                     # SRUM database is locked, try to copy with RawCopy if available
-                    $rawCopyPath = Join-Path $PSScriptRoot "bins\RawCopy.exe"
+                    $rawCopyPath = Get-BinFile 'RawCopy.exe'
                     
                     if (Test-Path $rawCopyPath) {
                         Write-Log "  - Attempting to copy SRUM database with RawCopy.exe"
@@ -685,7 +704,7 @@ try {
             if (Test-Path $amcachePath) {
                 try {
                     # Amcache is also locked, use RawCopy if available
-                    $rawCopyPath = Join-Path $PSScriptRoot "bins\RawCopy.exe"
+                    $rawCopyPath = Get-BinFile 'RawCopy.exe'
                     
                     if (Test-Path $rawCopyPath) {
                         Write-Log "  - Attempting to copy Amcache with RawCopy.exe"

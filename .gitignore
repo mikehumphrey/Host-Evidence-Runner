@@ -38,3 +38,4 @@ bins/Strings/*
 *.tar
 *.gz
 *.bz2
+releases/
