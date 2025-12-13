@@ -27,7 +27,7 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [string]$InvestigationPath,
 
     [Parameter(Mandatory=$false)]
@@ -60,6 +60,10 @@ param(
     ,
     [Parameter(Mandatory=$false)]
     [switch]$GenerateReport
+    ,
+    [Parameter(Mandatory=$false)] [string]$CasePath,
+    [Parameter(Mandatory=$false)] [string]$HostPath,
+    [Parameter(Mandatory=$false)] [string]$CollectionPath
 )
 
 # Construct the full path to the module
@@ -127,8 +131,13 @@ if ($SearchMFTPaths -or $SearchMFTPathsFile) {
 }
 
 if ($GenerateReport) {
-    Write-Host "`nGenerating investigation summary..." -ForegroundColor Yellow
-    Generate-InvestigationReport -InvestigationPath $InvestigationPath
+    Write-Host "`nGenerating report summaries..." -ForegroundColor Yellow
+    $repParams = @{}
+    if ($InvestigationPath) { $repParams['InvestigationPath'] = $InvestigationPath }
+    if ($CasePath) { $repParams['CasePath'] = $CasePath }
+    if ($HostPath) { $repParams['HostPath'] = $HostPath }
+    if ($CollectionPath) { $repParams['CollectionPath'] = $CollectionPath }
+    Generate-Reports @repParams
 }
 
 if (-not $YaraInputFile -and -not $ParseEventLogs -and -not $SearchKeywords -and -not $SearchKeywordsFile -and -not $FilterEventIDs -and -not $DetectSuspiciousPatterns -and -not $SearchMFTPaths -and -not $SearchMFTPathsFile -and -not $GenerateReport) {
@@ -140,7 +149,7 @@ if (-not $YaraInputFile -and -not $ParseEventLogs -and -not $SearchKeywords -and
                   "  -FilterEventIDs: Filter by specific Event IDs`n" +
                   "  -DetectSuspiciousPatterns: Find suspicious commands/patterns`n" +
                   "  -SearchMFTPaths/-SearchMFTPathsFile: Search the MFT for file paths`n" +
-                  "  -GenerateReport: Write a markdown summary of findings"
+                  "  -GenerateReport: Write summaries (supports -CasePath, -HostPath, -CollectionPath)"
 }
 
 Write-Host "`nAnalysis complete." -ForegroundColor Green

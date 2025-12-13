@@ -78,6 +78,10 @@ Use `source/Analyze-Investigation.ps1` to analyze a specific investigation folde
 - `Phase3_Filtered_EventLog_Results.csv` with keyword/pattern filtered events.
 - `Phase3_MFT_Analysis/MFT_Full.csv` with full MFT records.
 - `Phase3_MFT_PathMatches.csv` with matched file/path records from the MFT.
+ - Reporting:
+     - Per-collection: `Collection` folder `Investigation_Summary.md`
+     - Per-host: host folder `Host_Summary.md`
+     - Investigation: case root `Investigation_Summary.md`
 
 ### Examples
 
@@ -118,3 +122,24 @@ source\Analyze-Investigation.ps1 -InvestigationPath "investigations\Case\Host\20
 - Tools are auto-detected with preference order: `net9` → `net8` → `net6`.
 - Large datasets are processed in-memory; expect longer runtimes on big hosts.
 - Results are written into the investigation folder alongside `collected_files`.
+
+### Reporting Only (Summaries)
+- Generate summaries across a case:
+```powershell
+.
+source\Analyze-Investigation.ps1 -GenerateReport -CasePath "investigations\Case"
+```
+
+- Generate summaries for a host:
+```powershell
+.
+source\Analyze-Investigation.ps1 -GenerateReport -HostPath "investigations\Case\Host"
+```
+
+- Generate summary for a single collection:
+```powershell
+.
+source\Analyze-Investigation.ps1 -GenerateReport -CollectionPath "investigations\Case\Host\YYYYMMDD_HHMMSS"
+```
+
+Outputs include per-collection `Investigation_Summary.md`, aggregated `Host_Summary.md`, and top-level `Investigation_Summary.md`.

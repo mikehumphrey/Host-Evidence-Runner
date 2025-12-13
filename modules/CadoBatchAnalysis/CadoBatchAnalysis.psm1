@@ -549,4 +549,104 @@ function Generate-InvestigationReport {
     Write-Host "   Wrote report: $mdPath" -ForegroundColor Green
 }
 
-Export-ModuleMember -Function Invoke-YaraScan, Invoke-EventLogParsing, Search-EventLogData, Search-MFTForPaths, Generate-InvestigationReport
+function Generate-Reports {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)] [string]$InvestigationPath,
+        [Parameter(Mandatory=$false)] [string]$CasePath,
+        [Parameter(Mandatory=$false)] [string]$HostPath,
+        [Parameter(Mandatory=$false)] [string]$CollectionPath
+    )
+
+    # Resolve root based on provided input
+    $collections = @()
+    if ($CollectionPath) {
+        if (Test-Path $CollectionPath) { $collections += $CollectionPath } else { Write-Error "CollectionPath not found: $CollectionPath"; return }
+    } elseif ($HostPath) {
+        if (-not (Test-Path $HostPath)) { Write-Error "HostPath not found: $HostPath"; return }
+        $collections += Get-ChildItem -Path $HostPath -Directory | Where-Object { $_.Name -match '^[0-9]{8}_[0-9]{6}$' } | ForEach-Object { $_.FullName }
+    } elseif ($CasePath) {
+        if (-not (Test-Path $CasePath)) { Write-Error "CasePath not found: $CasePath"; return }
+        $hostDirs = Get-ChildItem -Path $CasePath -Directory
+        foreach ($h in $hostDirs) {
+            $collections += Get-ChildItem -Path $h.FullName -Directory | Where-Object { $_.Name -match '^[0-9]{8}_[0-9]{6}$' } | ForEach-Object { $_.FullName }
+        }
+    } elseif ($InvestigationPath) {
+        # Alias of CasePath (root of investigation)
+        if (-not (Test-Path $InvestigationPath)) { Write-Error "InvestigationPath not found: $InvestigationPath"; return }
+        $hostDirs = Get-ChildItem -Path $InvestigationPath -Directory
+        foreach ($h in $hostDirs) {
+            $collections += Get-ChildItem -Path $h.FullName -Directory | Where-Object { $_.Name -match '^[0-9]{8}_[0-9]{6}$' } | ForEach-Object { $_.FullName }
+        }
+    } else {
+        Write-Error "Provide one of: -CollectionPath | -HostPath | -CasePath | -InvestigationPath"
+        return
+    }
+
+    if ($collections.Count -eq 0) { Write-Warning "No collections found to summarize."; return }
+
+    # Per-collection summary generation
+    foreach ($c in $collections) {
+        try {
+            Generate-InvestigationReport -InvestigationPath $c
+        } catch { Write-Warning "Failed to summarize collection '$c': $_" }
+    }
+
+    # Group by host
+    $byHost = $collections | Group-Object { Split-Path (Split-Path $_ -Parent) -Leaf }
+    foreach ($group in $byHost) {
+        $hostName = $group.Name
+        $hostRoot = Split-Path $group.Group[0] -Parent
+        $rollup = @()
+        foreach ($c in $group.Group) {
+            $mftCsv = Join-Path $c "Phase3_MFT_PathMatches.csv"
+            $evCsv = Join-Path $c "Phase3_Filtered_EventLog_Results.csv"
+            $stats = [ordered]@{ Collection = Split-Path $c -Leaf; MFTMatches = 0; EventMatches = 0 }
+            if (Test-Path $mftCsv) { $stats.MFTMatches = (Import-Csv $mftCsv).Count }
+            if (Test-Path $evCsv) { $stats.EventMatches = (Import-Csv $evCsv).Count }
+            $rollup += [pscustomobject]$stats
+        }
+        $hostMd = Join-Path $hostRoot "Host_Summary.md"
+        $lines = @("# Host Summary: $hostName", "")
+        $lines += "- Collections: $($group.Group.Count)"
+        $lines += "- Total MFT Matches: $([int]($rollup | Measure-Object -Property MFTMatches -Sum).Sum)"
+        $lines += "- Total Event Matches: $([int]($rollup | Measure-Object -Property EventMatches -Sum).Sum)"
+        $lines += ""
+        $lines += "**Collections**"
+        foreach ($r in $rollup) { $lines += "- $($r.Collection): MFT=$($r.MFTMatches), Events=$($r.EventMatches)" }
+        $lines | Set-Content -Path $hostMd -Encoding UTF8
+    }
+
+    # Investigation rollup (case root)
+    $caseRoot = $null
+    if ($CasePath) { $caseRoot = $CasePath }
+    elseif ($InvestigationPath) { $caseRoot = $InvestigationPath }
+    else { $caseRoot = Split-Path (Split-Path $collections[0] -Parent) -Parent }
+
+    if ($caseRoot -and (Test-Path $caseRoot)) {
+        $hosts = Get-ChildItem -Path $caseRoot -Directory
+        $invLines = @("# Investigation Summary", "")
+        $invLines += "- Hosts: $($hosts.Count)"
+        $allStats = @()
+        foreach ($h in $hosts) {
+            $cols = Get-ChildItem -Path $h.FullName -Directory | Where-Object { $_.Name -match '^[0-9]{8}_[0-9]{6}$' }
+            $invLines += "- Host $($h.Name): Collections=$($cols.Count)"
+            foreach ($c in $cols) {
+                $mftCsv = Join-Path $c.FullName "Phase3_MFT_PathMatches.csv"
+                $evCsv = Join-Path $c.FullName "Phase3_Filtered_EventLog_Results.csv"
+                $stats = [ordered]@{ Host=$h.Name; Collection=$c.Name; MFTMatches=0; EventMatches=0 }
+                if (Test-Path $mftCsv) { $stats.MFTMatches = (Import-Csv $mftCsv).Count }
+                if (Test-Path $evCsv) { $stats.EventMatches = (Import-Csv $evCsv).Count }
+                $allStats += [pscustomobject]$stats
+            }
+        }
+        $invLines += ""
+        $invLines += "**Collections Overview**"
+        foreach ($s in $allStats) { $invLines += "- $($s.Host) / $($s.Collection): MFT=$($s.MFTMatches), Events=$($s.EventMatches)" }
+        $invMd = Join-Path $caseRoot "Investigation_Summary.md"
+        $invLines | Set-Content -Path $invMd -Encoding UTF8
+        Write-Host "   Wrote investigation summary: $invMd" -ForegroundColor Green
+    }
+}
+
+Export-ModuleMember -Function Invoke-YaraScan, Invoke-EventLogParsing, Search-EventLogData, Search-MFTForPaths, Generate-InvestigationReport, Generate-Reports

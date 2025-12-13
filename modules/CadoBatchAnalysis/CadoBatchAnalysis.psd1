@@ -13,7 +13,8 @@
         'Invoke-EventLogParsing',
         'Search-EventLogData',
         'Search-MFTForPaths',
-        'Generate-InvestigationReport'
+        'Generate-InvestigationReport',
+        'Generate-Reports'
     )
     CmdletsToExport = @()
     VariablesToExport = '*'
