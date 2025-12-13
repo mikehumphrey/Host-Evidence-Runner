@@ -51,22 +51,93 @@ Write-Log "Script Location: $scriptPath"
 Write-Log "PowerShell Version: $($PSVersionTable.PSVersion)"
 Write-Log "OS Version: $([System.Environment]::OSVersion)"
 
+# Safe path join to force string casting and avoid array-to-string binding issues
+function SafeJoinPath {
+    param(
+        [Parameter(Mandatory)]$Parent,
+        [Parameter(Mandatory)]$Child
+    )
+    Write-Verbose "DEBUG SafeJoinPath: Parent raw type=$($Parent.GetType().FullName)"
+    Write-Verbose "DEBUG SafeJoinPath: Child raw type=$($Child.GetType().FullName)"
+    
+    # Handle arrays by taking first element
+    if ($Parent -is [array]) {
+        Write-Log "WARNING: Parent is an array with $($Parent.Count) elements, taking first" -Level Warning
+        $Parent = $Parent[0]
+    }
+    if ($Child -is [array]) {
+        Write-Log "WARNING: Child is an array with $($Child.Count) elements, taking first" -Level Warning
+        $Child = $Child[0]
+    }
+    
+    # Convert to string
+    $parentStr = [string]$Parent
+    $childStr = [string]$Child
+    
+    Write-Verbose "DEBUG SafeJoinPath: Parent='$parentStr', Child='$childStr'"
+    try {
+        $result = Join-Path $parentStr $childStr
+        Write-Verbose "DEBUG SafeJoinPath: result='$result'"
+        return $result
+    } catch {
+        Write-Log "ERROR in SafeJoinPath: $_" -Level Error
+        Write-Log "ERROR details: Parent=$parentStr, Child=$childStr" -Level Error
+        throw
+    }
+}
+
 # Resolve the bins directory once so tools can live either beside the script
 # (source\bins) or at the release root (tools\bins), keeping a single copy.
-$binCandidates = @(
-    Join-Path $scriptPath 'bins',
-    Join-Path (Split-Path $scriptPath -Parent) 'tools\bins',
-    Join-Path (Split-Path $scriptPath -Parent) 'bins'
-)
+function Resolve-BinPath {
+    param([string[]]$Candidates)
 
-$binPath = $binCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $binPath) {
-    throw "Required tools folder not found. Expected one of: $($binCandidates -join ', ')"
+    foreach ($c in $Candidates) {
+        if (Test-Path $c) {
+            return (Resolve-Path $c).Path
+        }
+    }
+
+    throw "Required tools folder not found. Expected one of: $($Candidates -join ', ')"
 }
+
+Write-Log "DEBUG: scriptPath type: $($scriptPath.GetType().FullName), value: $scriptPath"
+$parentPath = Split-Path $scriptPath -Parent
+Write-Log "DEBUG: parentPath type: $($parentPath.GetType().FullName), value: $parentPath"
+
+Write-Log "DEBUG: About to call SafeJoinPath with scriptPath and 'bins'"
+$bin1 = SafeJoinPath $scriptPath 'bins'
+Write-Log "DEBUG: bin1 = $bin1"
+
+Write-Log "DEBUG: About to call SafeJoinPath with parentPath and 'tools\\bins'"
+$bin2 = SafeJoinPath $parentPath 'tools\bins'
+Write-Log "DEBUG: bin2 = $bin2"
+
+Write-Log "DEBUG: About to call SafeJoinPath with parentPath and 'bins'"
+$bin3 = SafeJoinPath $parentPath 'bins'
+Write-Log "DEBUG: bin3 = $bin3"
+
+$binCandidates = @($bin1, $bin2, $bin3)
+
+Write-Log "DEBUG: binCandidates count: $($binCandidates.Count)"
+for ($i = 0; $i -lt $binCandidates.Count; $i++) {
+    Write-Log "DEBUG: binCandidates[$i] type: $($binCandidates[$i].GetType().FullName), value: $($binCandidates[$i])"
+}
+
+$binPath = Resolve-BinPath -Candidates $binCandidates
 
 function Get-BinFile {
     param([Parameter(Mandatory)][string]$Name)
-    return (Join-Path $binPath $Name)
+    Write-Verbose "DEBUG Get-BinFile: binPath type=$($binPath.GetType().FullName), Name type=$($Name.GetType().FullName)"
+    Write-Verbose "DEBUG Get-BinFile: binPath='$binPath', Name='$Name'"
+    try {
+        $result = Join-Path ([string]$binPath) ([string]$Name)
+        Write-Verbose "DEBUG Get-BinFile: result='$result'"
+        return $result
+    } catch {
+        Write-Log "ERROR in Get-BinFile: $_" -Level Error
+        Write-Log "ERROR details: binPath=$binPath, Name=$Name" -Level Error
+        throw
+    }
 }
 
 Write-Log "Using tools from: $binPath"
@@ -189,8 +260,8 @@ try {
     Start-Process -FilePath (Get-BinFile 'RawCopy.exe') -ArgumentList "/FileNamePath:C:0" -Wait -NoNewWindow
     Start-Process -FilePath (Get-BinFile 'RawCopy.exe') -ArgumentList "/FileNamePath:c:\$LogFile" -Wait -NoNewWindow
 
-    Move-Item -Path (Get-BinFile $MFT) -Destination "$outputDir\MFT_C.bin" -Force -ErrorAction SilentlyContinue
-    Move-Item -Path (Get-BinFile $LogFile) -Destination "$outputDir\LogFile_C.bin" -Force -ErrorAction SilentlyContinue
+    Move-Item -Path (Get-BinFile '$MFT') -Destination "$outputDir\MFT_C.bin" -Force -ErrorAction SilentlyContinue
+    Move-Item -Path (Get-BinFile '$LogFile') -Destination "$outputDir\LogFile_C.bin" -Force -ErrorAction SilentlyContinue
     Write-Host "Successfully collected MFT and LogFile."
     Write-Log "Successfully collected MFT and LogFile."
 
@@ -275,8 +346,8 @@ try {
     # Collect USN Journal
     Write-Verbose "Collecting USN Journal (\$UsnJrnl)"
     Start-Process -FilePath (Get-BinFile 'RawCopy.exe') -ArgumentList "/FileNamePath:C:\$Extend\$UsnJrnl" -Wait -NoNewWindow
-    if (Test-Path (Get-BinFile $UsnJrnl)) {
-        Move-Item -Path (Get-BinFile $UsnJrnl) -Destination "$outputDir\UsnJrnl_C.bin" -Force
+    if (Test-Path (Get-BinFile '$UsnJrnl')) {
+        Move-Item -Path (Get-BinFile '$UsnJrnl') -Destination "$outputDir\UsnJrnl_C.bin" -Force
         Write-Host "Successfully collected USN Journal."
     } else {
         Write-Warning "Could not find the collected USN Journal. RawCopy may have failed."
@@ -286,7 +357,7 @@ try {
     $userProfiles = Get-ChildItem -Path "$env:SystemDrive\Users" -Directory | Where-Object { $_.Name -notin @("Default", "Public", "All Users") }
     foreach ($user in $userProfiles) {
         $userName = $user.Name
-        $userOutputDir = Join-Path $outputDir "Users\$userName"
+        $userOutputDir = SafeJoinPath $outputDir "Users\$userName"
         New-Item -ItemType Directory -Path $userOutputDir -Force
 
         Write-Verbose "Collecting artifacts for user: $userName"
@@ -481,7 +552,7 @@ try {
         try {
             Write-Verbose "  - Running strings.exe on registry hives"
             
-            $registryDir = Join-Path $outputDir "Registry"
+            $registryDir = SafeJoinPath $outputDir "Registry"
             if (Test-Path $registryDir) {
                 # Extract strings from NTUSER.DAT files
                 $ntuserFiles = Get-ChildItem -Path $registryDir -Filter "NTUSER.DAT" -Recurse -ErrorAction SilentlyContinue
@@ -543,14 +614,14 @@ try {
                             Write-Log "  - Found Chrome profile: $profileName"
                             
                             # Create human-readable export
-                            $outputFile = Join-Path $OutputPath "Chrome_History_${profileName}.txt"
+                            $outputFile = SafeJoinPath $OutputPath "Chrome_History_${profileName}.txt"
                             "Chrome History Export - Profile: $profileName" | Set-Content $outputFile
                             "Export Date: $(Get-Date)" | Add-Content $outputFile
                             "Database Location: $historyDb" | Add-Content $outputFile
                             "" | Add-Content $outputFile
                             
                             # Also copy raw History database for analysis
-                            $rawOutputFile = Join-Path $OutputPath "Chrome_History_${profileName}.db"
+                            $rawOutputFile = SafeJoinPath $OutputPath "Chrome_History_${profileName}.db"
                             Copy-Item -Path $historyDb -Destination $rawOutputFile -Force -ErrorAction SilentlyContinue
                             
                             Write-Verbose "  - Exported Chrome history for $profileName"
@@ -592,7 +663,7 @@ try {
                         
                         if (Test-Path $placesDb) {
                             # Copy Firefox database for analysis
-                            $outputFile = Join-Path $OutputPath "Firefox_History_$($profile.BaseName).db"
+                            $outputFile = SafeJoinPath $OutputPath "Firefox_History_$($profile.BaseName).db"
                             Copy-Item -Path $placesDb -Destination $outputFile -Force -ErrorAction SilentlyContinue
                             
                             Write-Log "  - Extracted Firefox history from profile: $($profile.Name)"
@@ -622,7 +693,7 @@ try {
                 $prefetchFiles = Get-ChildItem -Path $prefetchPath -Filter "*.pf" -ErrorAction SilentlyContinue
                 
                 if ($prefetchFiles.Count -gt 0) {
-                    $prefetchReport = Join-Path $OutputPath "Prefetch_Analysis.txt"
+                    $prefetchReport = SafeJoinPath $OutputPath "Prefetch_Analysis.txt"
                     
                     "PREFETCH FILE ANALYSIS" | Set-Content $prefetchReport
                     "Generated: $(Get-Date)" | Add-Content $prefetchReport
@@ -640,7 +711,7 @@ try {
                     
                     # Also copy all prefetch files for external parsing
                     Write-Log "  - Copying prefetch files for external analysis"
-                    $prefetchOutputDir = Join-Path $OutputPath "Prefetch_Files"
+                    $prefetchOutputDir = SafeJoinPath $OutputPath "Prefetch_Files"
                     New-Item -ItemType Directory -Path $prefetchOutputDir -Force -ErrorAction SilentlyContinue | Out-Null
                     Copy-Item -Path "$prefetchPath\*.pf" -Destination $prefetchOutputDir -Force -ErrorAction SilentlyContinue
                     
@@ -672,12 +743,12 @@ try {
                     
                     if (Test-Path $rawCopyPath) {
                         Write-Log "  - Attempting to copy SRUM database with RawCopy.exe"
-                        $outputSRUM = Join-Path $OutputPath "SRUM_Database.dat"
+                        $outputSRUM = SafeJoinPath $OutputPath "SRUM_Database.dat"
                         & $rawCopyPath /FileNamePath:$srumDbPath /OutputPath:$OutputPath | Out-Null
                         Write-Log "  - SRUM database copied successfully"
                     } else {
                         # Try direct copy (may fail if locked)
-                        $outputSRUM = Join-Path $OutputPath "SRUM_Database.dat"
+                        $outputSRUM = SafeJoinPath $OutputPath "SRUM_Database.dat"
                         Copy-Item -Path $srumDbPath -Destination $outputSRUM -Force -ErrorAction SilentlyContinue
                         Write-Log "  - SRUM database copied (may be partial if locked)"
                     }
@@ -712,7 +783,7 @@ try {
                         Write-Log "  - Amcache copied successfully"
                     } else {
                         # Try direct copy
-                        $outputAmcache = Join-Path $OutputPath "Amcache.hve"
+                        $outputAmcache = SafeJoinPath $OutputPath "Amcache.hve"
                         Copy-Item -Path $amcachePath -Destination $outputAmcache -Force -ErrorAction SilentlyContinue
                         Write-Log "  - Amcache copied (may be partial if locked)"
                     }
@@ -737,7 +808,7 @@ try {
             $tasksPath = "C:\Windows\System32\Tasks"
             
             if (Test-Path $tasksPath) {
-                $suspiciousReport = Join-Path $OutputPath "Suspicious_Scheduled_Tasks.txt"
+                $suspiciousReport = SafeJoinPath $OutputPath "Suspicious_Scheduled_Tasks.txt"
                 $taskCount = 0
                 $suspiciousCount = 0
                 
@@ -825,7 +896,7 @@ try {
             foreach ($browser in $browsers) {
                 if (Test-Path $browser.Path) {
                     try {
-                        $browserOutputDir = Join-Path $OutputPath "BrowserArtifacts_$($browser.Name)"
+                        $browserOutputDir = SafeJoinPath $OutputPath "BrowserArtifacts_$($browser.Name)"
                         New-Item -ItemType Directory -Path $browserOutputDir -Force -ErrorAction SilentlyContinue | Out-Null
                         
                         # Copy browser cache, cookies, and related files
@@ -845,7 +916,7 @@ try {
     # Execute Phase 2 collections
     try {
         # Create Phase 2 output directory
-        $phase2OutputDir = Join-Path $outputDir "Phase2_Advanced_Analysis"
+        $phase2OutputDir = SafeJoinPath $outputDir "Phase2_Advanced_Analysis"
         New-Item -ItemType Directory -Path $phase2OutputDir -Force -ErrorAction SilentlyContinue | Out-Null
         
         # Execute each Phase 2 function

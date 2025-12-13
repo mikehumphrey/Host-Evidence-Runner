@@ -9,8 +9,23 @@
 #>
 
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $MyInvocation.MyCommand.Definition
-Set-Location -Path $root
+
+# Resolve root robustly: prefer $PSCommandPath, then $PSScriptRoot, then MyInvocation
+$root = $null
+if ($PSCommandPath) {
+    $root = Split-Path -Parent $PSCommandPath
+} elseif ($PSScriptRoot) {
+    $root = $PSScriptRoot
+} elseif ($MyInvocation -and $MyInvocation.MyCommand -and $MyInvocation.MyCommand.Definition) {
+    $root = Split-Path -Parent $MyInvocation.MyCommand.Definition
+}
+
+if (-not $root -or -not (Test-Path $root)) {
+    Write-Host "Could not determine script root (invalid path)." -ForegroundColor Red
+    exit 1
+}
+
+Set-Location -Path (Resolve-Path $root)
 
 $collect = Join-Path $root 'source\collect.ps1'
 if (-not (Test-Path $collect)) {
