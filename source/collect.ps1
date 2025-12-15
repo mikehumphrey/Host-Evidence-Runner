@@ -2,7 +2,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
-    [string]$RootPath
+    [string]$RootPath,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$NoZip
 )
 
 $ErrorActionPreference = 'Stop'
@@ -346,6 +349,57 @@ try {
     Write-Log "Successfully collected System Registry hives."
     Add-CollectionResult -ItemName "System Registry Hives" -Status Success
 
+    # Flatten deep registry paths to avoid MAX_PATH issues during hashing
+    Write-Verbose "Flattening deep registry paths for hash compatibility..."
+    Write-Log "Flattening deep registry paths to avoid MAX_PATH limitations"
+    
+    $flattenedDir = Join-Path $outputDir "Registry\Flattened_LongPaths"
+    New-Item -ItemType Directory -Path $flattenedDir -Force -ErrorAction SilentlyContinue | Out-Null
+    
+    try {
+        # Find files in Registry directory with paths > 200 characters (conservative threshold)
+        $registryDir = Join-Path $outputDir "Registry"
+        $longPathFiles = Get-ChildItem -Path $registryDir -Recurse -File -ErrorAction SilentlyContinue | 
+            Where-Object { $_.FullName.Length -gt 200 }
+        
+        if ($longPathFiles) {
+            $flattenCount = 0
+            foreach ($file in $longPathFiles) {
+                try {
+                    # Create a flattened filename with path context
+                    # Example: systemprofile_AppData_Local_Microsoft_Windows_CloudAPCache_filename.ext
+                    $relativePath = $file.FullName.Substring($registryDir.Length + 1)
+                    $flatName = $relativePath -replace '\\', '_' -replace '/', '_'
+                    
+                    # Truncate if still too long (keep extension)
+                    if ($flatName.Length -gt 180) {
+                        $extension = [System.IO.Path]::GetExtension($flatName)
+                        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($flatName)
+                        $hash = ($baseName | Get-FileHash -Algorithm MD5 -ErrorAction SilentlyContinue).Hash
+                        if ($hash) {
+                            $flatName = $hash + $extension
+                        } else {
+                            $flatName = $baseName.Substring(0, [Math]::Min(175, $baseName.Length)) + $extension
+                        }
+                    }
+                    
+                    $destPath = Join-Path $flattenedDir $flatName
+                    Copy-Item -Path $file.FullName -Destination $destPath -Force -ErrorAction Stop
+                    $flattenCount++
+                } catch {
+                    Write-Log "  Could not flatten: $($file.FullName)" -Level Warning
+                }
+            }
+            
+            Write-Log "Flattened $flattenCount files from deep registry paths"
+            Write-Host "Flattened $flattenCount registry files with long paths." -ForegroundColor Cyan
+        } else {
+            Write-Verbose "  No excessively long paths detected in Registry collection"
+        }
+    } catch {
+        Write-Log "Warning: Could not complete registry path flattening: $_" -Level Warning
+    }
+
     Write-Verbose "Collecting additional system artifacts..."
     
     # Collect Prefetch files
@@ -607,10 +661,39 @@ try {
     if (Test-Path $hashdeepPath) {
         try {
             Write-Verbose "  - Running hashdeep.exe on collected files"
-            & $hashdeepPath -r -c sha256 "$outputDir" | Out-File -FilePath "$outputDir\SHA256_MANIFEST.txt" -ErrorAction Stop
-            Write-Host "Successfully generated SHA256 manifest."
-            Write-Log "SHA256 manifest created: $outputDir\SHA256_MANIFEST.txt"
-            Add-CollectionResult -ItemName "SHA256 Hash Manifest" -Status Success
+            # Run hashdeep and capture output, continuing even if some files fail due to long paths
+            $hashdeepOutput = & $hashdeepPath -r -c sha256 "$outputDir" 2>&1
+            
+            # Filter out long path errors but keep valid hash data
+            $validOutput = $hashdeepOutput | Where-Object { 
+                $_ -notmatch "No such file or directory" -and 
+                $_ -notmatch "Invalid argument" 
+            }
+            
+            # Write the valid hashes to the manifest
+            $validOutput | Out-File -FilePath "$outputDir\SHA256_MANIFEST.txt" -ErrorAction Stop
+            
+            # Check if we had path length issues
+            $pathErrors = $hashdeepOutput | Where-Object { $_ -match "No such file or directory" }
+            
+            if ($pathErrors) {
+                $errorCount = ($pathErrors | Measure-Object).Count
+                Write-Log "Warning: SHA256 manifest generated with $errorCount file(s) skipped due to path length limitations" -Level Warning
+                Write-Host "Successfully generated SHA256 manifest ($errorCount files skipped due to long paths)." -ForegroundColor Yellow
+                Add-CollectionResult -ItemName "SHA256 Hash Manifest" -Status Warning -Message "$errorCount files skipped (path too long)"
+                
+                # Log the problematic paths for reference
+                $pathErrors | Select-Object -First 5 | ForEach-Object {
+                    Write-Log "  Skipped: $_" -Level Warning
+                }
+                if ($errorCount -gt 5) {
+                    Write-Log "  ... and $($errorCount - 5) more files" -Level Warning
+                }
+            } else {
+                Write-Host "Successfully generated SHA256 manifest."
+                Write-Log "SHA256 manifest created: $outputDir\SHA256_MANIFEST.txt"
+                Add-CollectionResult -ItemName "SHA256 Hash Manifest" -Status Success
+            }
         } catch {
             Write-Log "Warning: Could not generate SHA256 manifest: $_" -Level Warning
             Write-Host "Warning: SHA256 manifest generation failed (continuing collection)"
@@ -1042,20 +1125,6 @@ try {
         Write-Log "Phase 2 encountered errors (collection may be partial): $_" -Level Warning
     }
 
-    # ============================================================================
-    # Compression and Finalization
-    # ============================================================================
-    
-    $zipFile = Join-Path $outputRoot "collected_files.zip"
-    if (Test-Path $zipFile) {
-        Remove-Item $zipFile
-    }
-    Write-Verbose "Compressing collected files into $zipFile"
-    Write-Log "Compressing collected files for transport"
-    Compress-Archive -Path "$outputDir\*" -DestinationPath $zipFile -ErrorAction Stop
-    Write-Host "Successfully compressed files to $zipFile."
-    Write-Log "Files compressed to: $zipFile"
-
 } catch {
     Write-Log "============================================================================" -Level Error
     Write-Log "CRITICAL ERROR OCCURRED" -Level Error
@@ -1093,8 +1162,9 @@ try {
 # Successful Completion - Generate Summary Report
 # ============================================================================
 
-$endTime = Get-Date
-$duration = $endTime - (Get-Date $timestamp)
+$collectionEndTime = Get-Date
+$startTime = [datetime]::ParseExact($timestamp, 'yyyyMMdd_HHmmss', $null)
+$duration = $collectionEndTime - $startTime
 
 Write-Log "============================================================================"
 Write-Log "Collection Process Completed Successfully"
@@ -1108,6 +1178,36 @@ Write-Log "  Successful: $($script:collectionStats.SuccessfulItems)"
 Write-Log "  Warnings: $($script:collectionStats.Warnings)"
 Write-Log "  Errors: $($script:collectionStats.Errors)"
 Write-Log "  Duration: $($duration.ToString('hh\:mm\:ss'))"
+
+# ============================================================================
+# Optional Compression
+# ============================================================================
+
+$zipFile = ""
+if (-not $NoZip) {
+    Write-Verbose "Compressing collected files..."
+    Write-Log "Compressing collected files for transport (this may take several minutes for large collections)"
+    
+    try {
+        $zipFile = Join-Path $outputRoot "collected_files.zip"
+        if (Test-Path $zipFile) {
+            Remove-Item $zipFile -Force
+        }
+        
+        Compress-Archive -Path "$outputDir\*" -DestinationPath $zipFile -ErrorAction Stop
+        Write-Host "Successfully compressed files to $zipFile" -ForegroundColor Green
+        Write-Log "Files compressed to: $zipFile"
+    } catch {
+        Write-Log "Warning: Could not compress collected files: $_" -Level Warning
+        Write-Host "Warning: Compression failed - collected files remain uncompressed" -ForegroundColor Yellow
+        Write-Host "  Error: $_" -ForegroundColor Yellow
+        $zipFile = "(Compression failed - files remain uncompressed)"
+    }
+} else {
+    Write-Verbose "Skipping compression (NoZip parameter specified)"
+    Write-Log "Compression skipped per user request (-NoZip parameter)"
+    $zipFile = "(Compression skipped)"
+}
 
 # Generate detailed summary
 $summaryFile = Join-Path $outputRoot "COLLECTION_SUMMARY.txt"
@@ -1159,7 +1259,15 @@ OUTPUT LOCATIONS
 ============================================================================
 
 Collected Files: $outputDir
-Compressed Archive: $zipFile
+"@ | Add-Content $summaryFile
+
+if ($zipFile -and $zipFile -ne "(Compression skipped)" -and $zipFile -ne "(Compression failed - files remain uncompressed)") {
+    "Compressed Archive: $zipFile" | Add-Content $summaryFile
+} else {
+    "Compressed Archive: $zipFile" | Add-Content $summaryFile
+}
+
+@"
 Log File: $logFile
 This Summary: $summaryFile
 
@@ -1205,7 +1313,11 @@ if ($script:collectionStats.Warnings -gt 0 -or $script:collectionStats.Errors -g
 
 Write-Host "Output Locations:" -ForegroundColor Cyan
 Write-Host "  Collected Files: $outputDir" -ForegroundColor White
-Write-Host "  Compressed Archive: $zipFile" -ForegroundColor White
+if ($zipFile -and $zipFile -ne "(Compression skipped)" -and $zipFile -ne "(Compression failed - files remain uncompressed)") {
+    Write-Host "  Compressed Archive: $zipFile" -ForegroundColor White
+} elseif ($zipFile) {
+    Write-Host "  Compressed Archive: $zipFile" -ForegroundColor Yellow
+}
 Write-Host "  Summary Report: $summaryFile" -ForegroundColor White
 Write-Host "  Log File: $logFile" -ForegroundColor White
 Write-Host ""
