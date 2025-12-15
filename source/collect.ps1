@@ -148,6 +148,18 @@ function Get-BinFile {
     Write-Verbose "DEBUG Get-BinFile: binPath type=$($binPath.GetType().FullName), Name type=$($Name.GetType().FullName)"
     Write-Verbose "DEBUG Get-BinFile: binPath='$binPath', Name='$Name'"
     try {
+        # Check if a 64-bit version exists (e.g., hashdeep64.exe instead of hashdeep.exe)
+        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($Name)
+        $extension = [System.IO.Path]::GetExtension($Name)
+        $name64 = "${baseName}64${extension}"
+        $path64 = Join-Path ([string]$binPath) ([string]$name64)
+        
+        if (Test-Path $path64) {
+            Write-Verbose "DEBUG Get-BinFile: Using 64-bit version: $path64"
+            return $path64
+        }
+        
+        # Fall back to 32-bit version
         $result = Join-Path ([string]$binPath) ([string]$Name)
         Write-Verbose "DEBUG Get-BinFile: result='$result'"
         return $result
@@ -159,6 +171,42 @@ function Get-BinFile {
 }
 
 Write-Log "Using tools from: $binPath"
+
+# ============================================================================
+# Initialize Collection Tracking
+# ============================================================================
+
+$script:collectionStats = @{
+    TotalItems = 0
+    SuccessfulItems = 0
+    Warnings = 0
+    Errors = 0
+    CollectionDetails = @()
+}
+
+function Add-CollectionResult {
+    param(
+        [string]$ItemName,
+        [ValidateSet('Success', 'Warning', 'Error')]
+        [string]$Status,
+        [string]$Message = ''
+    )
+    
+    $script:collectionStats.TotalItems++
+    
+    switch ($Status) {
+        'Success' { $script:collectionStats.SuccessfulItems++ }
+        'Warning' { $script:collectionStats.Warnings++ }
+        'Error' { $script:collectionStats.Errors++ }
+    }
+    
+    $script:collectionStats.CollectionDetails += [PSCustomObject]@{
+        Item = $ItemName
+        Status = $Status
+        Message = $Message
+        Timestamp = Get-Date -Format "HH:mm:ss"
+    }
+}
 
 # Function to detect hypervisor/virtualization
 function Get-HypervisorInfo {
@@ -282,18 +330,21 @@ try {
     Move-Item -Path (Get-BinFile '$LogFile') -Destination "$outputDir\LogFile_C.bin" -Force -ErrorAction SilentlyContinue
     Write-Host "Successfully collected MFT and LogFile."
     Write-Log "Successfully collected MFT and LogFile."
+    Add-CollectionResult -ItemName "MFT and LogFile" -Status Success
 
     Write-Verbose "Collecting EVTX files..."
     Write-Log "Collecting EVTX files..."
     Copy-Item -Path "$env:SystemRoot\System32\winevt\logs\*.evtx" -Destination "$outputDir\" -Recurse -Force
     Write-Host "Successfully collected EVTX files."
     Write-Log "Successfully collected EVTX files."
+    Add-CollectionResult -ItemName "Event Logs (EVTX)" -Status Success
 
     Write-Verbose "Collecting System Registry hives..."
     Write-Log "Collecting System Registry hives..."
     robocopy "$env:SystemRoot\System32\Config" "$outputDir\Registry" /E /R:1 /W:1 | Out-Null
     Write-Host "Successfully collected System Registry hives."
     Write-Log "Successfully collected System Registry hives."
+    Add-CollectionResult -ItemName "System Registry Hives" -Status Success
 
     Write-Verbose "Collecting additional system artifacts..."
     
@@ -301,8 +352,16 @@ try {
     $prefetchDir = Join-Path $env:SystemRoot "Prefetch"
     if (Test-Path $prefetchDir) {
         Write-Verbose "Collecting prefetch files from $prefetchDir"
-        Copy-Item -Path "$prefetchDir\*.pf" -Destination "$outputDir\Prefetch\" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "Successfully collected prefetch files."
+        try {
+            Copy-Item -Path "$prefetchDir\*.pf" -Destination "$outputDir\Prefetch\" -Recurse -Force -ErrorAction Stop
+            Write-Host "Successfully collected prefetch files."
+            Write-Log "Successfully collected prefetch files"
+            Add-CollectionResult -ItemName "Prefetch Files" -Status Success
+        } catch {
+            Write-Log "Warning: Could not collect all prefetch files: $_" -Level Warning
+            Write-Host "Warning: Prefetch collection partially failed - continuing..." -ForegroundColor Yellow
+            Add-CollectionResult -ItemName "Prefetch Files" -Status Warning -Message "Partial failure: $_"
+        }
     }
 
     # Collect Scheduled Tasks (XML format)
@@ -317,16 +376,28 @@ try {
     Write-Verbose "Collecting Windows Search Index (Windows.db)..."
     $searchPath = Join-Path $env:LOCALAPPDATA "Microsoft\Windows Search\Data\Applications\Windows\Windows.db"
     if (Test-Path $searchPath) {
-        Copy-Item -Path $searchPath -Destination "$outputDir\" -Force -ErrorAction SilentlyContinue
-        Write-Host "Successfully collected Windows Search Index."
+        try {
+            Copy-Item -Path $searchPath -Destination "$outputDir\" -Force -ErrorAction Stop
+            Write-Host "Successfully collected Windows Search Index."
+            Write-Log "Successfully collected Windows Search Index"
+        } catch {
+            Write-Log "Warning: Could not collect Windows Search Index (file may be locked): $_" -Level Warning
+            Write-Host "Warning: Windows Search Index collection failed - continuing..." -ForegroundColor Yellow
+        }
     }
 
     # Collect HOSTS file
     Write-Verbose "Collecting HOSTS file..."
     $hostsPath = Join-Path $env:SystemRoot "System32\drivers\etc\hosts"
     if (Test-Path $hostsPath) {
-        Copy-Item -Path $hostsPath -Destination "$outputDir\" -Force
-        Write-Host "Successfully collected HOSTS file."
+        try {
+            Copy-Item -Path $hostsPath -Destination "$outputDir\" -Force -ErrorAction Stop
+            Write-Host "Successfully collected HOSTS file."
+            Write-Log "Successfully collected HOSTS file"
+        } catch {
+            Write-Log "Warning: Could not collect HOSTS file: $_" -Level Warning
+            Write-Host "Warning: HOSTS file collection failed - continuing..." -ForegroundColor Yellow
+        }
     }
 
     # Collect Recycle Bin info ($Recycle.Bin)
@@ -349,16 +420,30 @@ try {
     $amcachePath = Join-Path $env:SystemRoot "appcompat\Programs\Amcache.hve"
     if (Test-Path $amcachePath) {
         Write-Verbose "Collecting Amcache.hve"
-        Copy-Item -Path $amcachePath -Destination "$outputDir\" -Force
-        Write-Host "Successfully collected Amcache.hve."
+        try {
+            Copy-Item -Path $amcachePath -Destination "$outputDir\" -Force -ErrorAction Stop
+            Write-Host "Successfully collected Amcache.hve."
+            Write-Log "Successfully collected Amcache.hve"
+            Add-CollectionResult -ItemName "Amcache.hve" -Status Success
+        } catch {
+            Write-Log "Warning: Could not collect Amcache.hve (file may be locked): $_" -Level Warning
+            Write-Host "Warning: Amcache.hve collection failed (file locked) - continuing..." -ForegroundColor Yellow
+            Add-CollectionResult -ItemName "Amcache.hve" -Status Warning -Message "File locked: $_"
+        }
     }
 
     # Collect SRUM database
     $srumPath = Join-Path $env:SystemRoot "System32\sru\SRUDB.dat"
     if (Test-Path $srumPath) {
         Write-Verbose "Collecting SRUM database (SRUDB.dat)"
-        robocopy (Split-Path $srumPath) "$outputDir" (Split-Path $srumPath -Leaf) /R:1 /W:1 | Out-Null
-        Write-Host "Successfully collected SRUM database."
+        try {
+            robocopy (Split-Path $srumPath) "$outputDir" (Split-Path $srumPath -Leaf) /R:1 /W:1 | Out-Null
+            Write-Host "Successfully collected SRUM database."
+            Write-Log "Successfully collected SRUM database"
+        } catch {
+            Write-Log "Warning: Could not collect SRUM database (file may be locked): $_" -Level Warning
+            Write-Host "Warning: SRUM database collection failed (file locked) - continuing..." -ForegroundColor Yellow
+        }
     }
 
     # Collect USN Journal
@@ -455,6 +540,7 @@ try {
         }
     }
     Write-Host "Successfully collected user-specific artifacts."
+    Add-CollectionResult -ItemName "User-Specific Artifacts ($($userProfiles.Count) profiles)" -Status Success
 
     Write-Verbose "Listing root directory of C: drive"
     Get-ChildItem -Path "$env:SystemDrive\" | Out-File -FilePath "$outputDir\C_Dir.txt"
@@ -524,9 +610,11 @@ try {
             & $hashdeepPath -r -c sha256 "$outputDir" | Out-File -FilePath "$outputDir\SHA256_MANIFEST.txt" -ErrorAction Stop
             Write-Host "Successfully generated SHA256 manifest."
             Write-Log "SHA256 manifest created: $outputDir\SHA256_MANIFEST.txt"
+            Add-CollectionResult -ItemName "SHA256 Hash Manifest" -Status Success
         } catch {
             Write-Log "Warning: Could not generate SHA256 manifest: $_" -Level Warning
             Write-Host "Warning: SHA256 manifest generation failed (continuing collection)"
+            Add-CollectionResult -ItemName "SHA256 Hash Manifest" -Status Warning -Message "Generation failed: $_"
         }
     } else {
         Write-Log "Note: hashdeep.exe not found in bins/ - SHA256 manifest skipped (Phase 1 tool not installed)" -Level Warning
@@ -548,13 +636,16 @@ try {
                 & $sigcheckPath -nobanner -accepteula $exeFiles.FullName | Out-File -FilePath "$outputDir\ExecutableSignatures.txt" -ErrorAction Stop
                 Write-Host "Successfully verified executable signatures."
                 Write-Log "Executable signatures verified: $outputDir\ExecutableSignatures.txt"
+                Add-CollectionResult -ItemName "Executable Signature Verification" -Status Success
             } else {
                 Write-Verbose "  - No .exe files found in collected artifacts"
                 Write-Log "No executables found in collected artifacts - signature verification skipped"
+                Add-CollectionResult -ItemName "Executable Signature Verification" -Status Warning -Message "No .exe files found"
             }
         } catch {
             Write-Log "Warning: Could not verify executable signatures: $_" -Level Warning
             Write-Host "Warning: Executable signature verification failed (continuing collection)"
+            Add-CollectionResult -ItemName "Executable Signature Verification" -Status Warning -Message "Verification failed: $_"
         }
     } else {
         Write-Log "Note: sigcheck.exe not found in bins/ - signature verification skipped (Phase 1 tool not installed)" -Level Warning
@@ -999,28 +1090,131 @@ try {
 }
 
 # ============================================================================
-# Successful Completion
+# Successful Completion - Generate Summary Report
 # ============================================================================
+
+$endTime = Get-Date
+$duration = $endTime - (Get-Date $timestamp)
 
 Write-Log "============================================================================"
 Write-Log "Collection Process Completed Successfully"
 Write-Log "============================================================================"
 Write-Log "Output Location: $outputDir"
 Write-Log "Log File: $logFile"
+Write-Log ""
+Write-Log "Collection Summary:"
+Write-Log "  Total Items Attempted: $($script:collectionStats.TotalItems)"
+Write-Log "  Successful: $($script:collectionStats.SuccessfulItems)"
+Write-Log "  Warnings: $($script:collectionStats.Warnings)"
+Write-Log "  Errors: $($script:collectionStats.Errors)"
+Write-Log "  Duration: $($duration.ToString('hh\:mm\:ss'))"
+
+# Generate detailed summary
+$summaryFile = Join-Path $outputRoot "COLLECTION_SUMMARY.txt"
+@"
+============================================================================
+HOST EVIDENCE RUNNER (HER) - COLLECTION SUMMARY
+============================================================================
+
+Collection Date: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+Computer Name: $computerName
+User Account: $env:USERNAME
+Duration: $($duration.ToString('hh\:mm\:ss'))
+
+============================================================================
+COLLECTION STATISTICS
+============================================================================
+
+Total Items Attempted: $($script:collectionStats.TotalItems)
+Successful Collections: $($script:collectionStats.SuccessfulItems)
+Warnings: $($script:collectionStats.Warnings)
+Errors: $($script:collectionStats.Errors)
+
+Success Rate: $([math]::Round(($script:collectionStats.SuccessfulItems / $script:collectionStats.TotalItems) * 100, 1))%
+
+============================================================================
+COLLECTION DETAILS
+============================================================================
+
+"@ | Set-Content $summaryFile
+
+foreach ($detail in $script:collectionStats.CollectionDetails) {
+    $statusSymbol = switch ($detail.Status) {
+        'Success' { '[✓]' }
+        'Warning' { '[!]' }
+        'Error' { '[✗]' }
+    }
+    
+    $line = "$statusSymbol [$($detail.Timestamp)] $($detail.Item)"
+    if ($detail.Message) {
+        $line += " - $($detail.Message)"
+    }
+    Add-Content -Path $summaryFile -Value $line
+}
+
+@"
+
+============================================================================
+OUTPUT LOCATIONS
+============================================================================
+
+Collected Files: $outputDir
+Compressed Archive: $zipFile
+Log File: $logFile
+This Summary: $summaryFile
+
+============================================================================
+SYSTEM INFORMATION
+============================================================================
+
+Hypervisor: $hypervisor
+Server Roles: $($serverRoles -join ', ')
+PowerShell Version: $($PSVersionTable.PSVersion)
+OS Version: $([System.Environment]::OSVersion)
+
+============================================================================
+NEXT STEPS
+============================================================================
+
+1. Disconnect USB from server
+2. Copy the entire output folder to secure location
+3. Provide collected data and log file to analyst
+4. Contact analyst to confirm receipt
+5. Securely delete local copies after confirmation
+
+============================================================================
+"@ | Add-Content $summaryFile
 
 Write-Host ""
 Write-Host "============================================================================" -ForegroundColor Green
 Write-Host "COLLECTION COMPLETE!" -ForegroundColor Green
 Write-Host "============================================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Collected data location: $outputDir" -ForegroundColor Green
-Write-Host "Log file: $logFile" -ForegroundColor Green
+Write-Host "Collection Statistics:" -ForegroundColor Cyan
+Write-Host "  Total Items: $($script:collectionStats.TotalItems)" -ForegroundColor White
+Write-Host "  Successful: $($script:collectionStats.SuccessfulItems)" -ForegroundColor Green
+Write-Host "  Warnings: $($script:collectionStats.Warnings)" -ForegroundColor Yellow
+Write-Host "  Errors: $($script:collectionStats.Errors)" -ForegroundColor $(if ($script:collectionStats.Errors -gt 0) { 'Red' } else { 'White' })
+Write-Host "  Duration: $($duration.ToString('hh\:mm\:ss'))" -ForegroundColor White
+Write-Host ""
+
+if ($script:collectionStats.Warnings -gt 0 -or $script:collectionStats.Errors -gt 0) {
+    Write-Host "⚠ Some items had issues - see summary report for details" -ForegroundColor Yellow
+    Write-Host ""
+}
+
+Write-Host "Output Locations:" -ForegroundColor Cyan
+Write-Host "  Collected Files: $outputDir" -ForegroundColor White
+Write-Host "  Compressed Archive: $zipFile" -ForegroundColor White
+Write-Host "  Summary Report: $summaryFile" -ForegroundColor White
+Write-Host "  Log File: $logFile" -ForegroundColor White
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "1. Disconnect USB from server"
-Write-Host "2. Copy '$outputDir' folder to return to analyst"
-Write-Host "3. Also copy log file to provide to analyst"
-Write-Host "4. Contact analyst to confirm receipt"
+Write-Host "1. Review the summary report above for any warnings or errors"
+Write-Host "2. Disconnect USB from server"
+Write-Host "3. Copy entire output folder to secure location"
+Write-Host "4. Provide to analyst with summary report"
+Write-Host "5. Securely delete local copies after confirmation"
 Write-Host ""
 Write-Host "============================================================================" -ForegroundColor Green
 Write-Host ""
