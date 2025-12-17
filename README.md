@@ -1,6 +1,6 @@
 # Host Evidence Runner (HER)
 
-**Version:** 1.0.0  
+**Version:** 1.0.1  
 **Build Date:** December 2025
 
 A PowerShell-based forensic evidence collector for modern Windows systems (Windows 10, Windows 11, Server 2016+). Designed for rapid deployment from USB or network shares in incident response scenarios.
@@ -17,8 +17,12 @@ Copy and paste these commands **one line at a time** into PowerShell ISE or Powe
 # Step 1: Create working directory
 Set-Location -Path C:\Temp
 
-# Step 2: Copy collector from network share
-Copy-Item -Path "\\moasscfs01\software$\HER-Collector.zip" -Destination C:\Temp\
+# Step 2: Copy collector from network share or GitHub releases
+# Option A: From network share (replace SHARE_SERVER and SHARE_PATH with your values)
+# Copy-Item -Path "\\<SHARE_SERVER>\<SHARE_PATH>\HER-Collector.zip" -Destination C:\Temp\
+# 
+# Option B: Download from GitHub releases
+# Invoke-WebRequest -Uri "https://github.com/your-org/Cado-Batch/releases/download/v1.0.1/HER-Collector.zip" -OutFile C:\Temp\HER-Collector.zip
 
 # Step 3: Extract the collector
 Expand-Archive -Path C:\Temp\HER-Collector.zip -DestinationPath C:\Temp\HER-Collector -Force

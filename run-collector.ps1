@@ -15,7 +15,7 @@
 .PARAMETER AnalystWorkstation
     Hostname or IP of analyst workstation to copy collected files to via robocopy.
     Files will be copied to C$\Temp\Investigations\[Hostname]\[Timestamp]
-    Example: -AnalystWorkstation "ITDL251263" or -AnalystWorkstation "localhost"
+    Example: -AnalystWorkstation "analyst-workstation" or -AnalystWorkstation "localhost"
 #>
 
 [CmdletBinding()]

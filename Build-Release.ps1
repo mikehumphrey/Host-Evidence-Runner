@@ -51,7 +51,9 @@ $layout = @(
     @{ src = Join-Path $root 'source\collect.ps1';            dest = Join-Path $OutputDir 'source\collect.ps1' },
     @{ src = Join-Path $root 'tools\bins';                    dest = Join-Path $OutputDir 'tools\bins' },
     @{ src = Join-Path $root 'templates';                      dest = Join-Path $OutputDir 'templates' },
-    @{ src = Join-Path $root 'README.md';                      dest = Join-Path $OutputDir 'README.md' }
+    @{ src = Join-Path $root 'README.md';                      dest = Join-Path $OutputDir 'README.md' },
+    @{ src = Join-Path $root 'RELEASE_NOTES.md';              dest = Join-Path $OutputDir 'RELEASE_NOTES.md' },
+    @{ src = Join-Path $root 'VALIDATION_REPORT.md';         dest = Join-Path $OutputDir 'VALIDATION_REPORT.md' }
 )
 
 foreach ($item in $layout) {

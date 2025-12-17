@@ -1,7 +1,7 @@
 # 🎯 Host Evidence Runner (HER) - Start Here
 
-**Version:** 1.0.0  
-**Last Updated:** December 15, 2025  
+**Version:** 1.0.1  
+**Last Updated:** December 17, 2025  
 **Status:** ✅ PRODUCTION READY
 
 ---

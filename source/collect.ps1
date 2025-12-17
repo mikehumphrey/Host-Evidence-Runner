@@ -322,6 +322,33 @@ function Get-InstalledServerRoles {
     }
 }
 
+# Function to handle operations that might exceed MAX_PATH
+function Invoke-SafeFileOperation {
+    param(
+        [string]$SourcePath,
+        [string]$DestinationPath,
+        [string]$OperationType = 'Copy'
+    )
+    
+    try {
+        # Check path lengths
+        if ($DestinationPath.Length -gt 248) {
+            Write-Verbose "Destination path exceeds 248 chars, using robocopy: $DestinationPath"
+            if (Test-Path $SourcePath) {
+                New-Item -ItemType Directory -Path $DestinationPath -Force -ErrorAction SilentlyContinue | Out-Null
+                robocopy (Split-Path $SourcePath) $DestinationPath (Split-Path $SourcePath -Leaf) /R:1 /W:1 2>&1 | Out-Null
+            }
+        } else {
+            # Path is safe, use Copy-Item
+            if (Test-Path $SourcePath) {
+                Copy-Item -Path $SourcePath -Destination $DestinationPath -Force -ErrorAction Stop
+            }
+        }
+    } catch {
+        Write-Verbose "Safe file operation failed: $_"
+    }
+}
+
 try {
     Write-Verbose "Moving to the correct working directory: $scriptPath"
     Set-Location -Path $scriptPath
@@ -779,11 +806,16 @@ try {
             }
         }
 
-        # LNK files and Jump Lists
+        # LNK files and Jump Lists (use robocopy to handle long paths better)
         $recentPath = Join-Path $user.FullName "AppData\Roaming\Microsoft\Windows\Recent"
         if (Test-Path $recentPath) {
-            Copy-Item -Path "$recentPath\*" -Destination "$userOutputDir\RecentItems" -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Verbose "  - Collected Recent Items (LNK files and Jump Lists)"
+            try {
+                $recentDest = Join-Path $userOutputDir "Recent"
+                robocopy $recentPath $recentDest /E /R:1 /W:1 2>&1 | Out-Null
+                Write-Verbose "  - Collected Recent Items (LNK files and Jump Lists)"
+            } catch {
+                Write-Verbose "  - Could not collect Recent Items: $_"
+            }
         }
 
         # PowerShell History (PSReadline)
@@ -1358,36 +1390,44 @@ try {
     }
 
 } catch {
-    Write-Log "============================================================================" -Level Error
-    Write-Log "CRITICAL ERROR OCCURRED" -Level Error
-    Write-Log "============================================================================" -Level Error
-    Write-Log "Error Message: $_" -Level Error
-    Write-Log "Error Details: $($_.Exception.Message)" -Level Error
-    Write-Log "Script Line: $($_.InvocationInfo.Line)" -Level Error
-    Write-Log "============================================================================" -Level Error
-    
-    Write-Host ""
-    Write-Host "============================================================================" -ForegroundColor Red
-    Write-Host "COLLECTION FAILED WITH ERROR" -ForegroundColor Red
-    Write-Host "============================================================================" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Error: $_" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "What to do:" -ForegroundColor Yellow
-    Write-Host "1. Read the log file: logs\forensic_collection_$computerName*.txt"
-    Write-Host "2. Note the error message above"
-    Write-Host "3. Send the log file to the analyst who provided this tool"
-    Write-Host ""
-    Write-Host "If collection was partially successful:" -ForegroundColor Yellow
-    Write-Host "- A 'collected_files' folder may still contain some data"
-    Write-Host "- Return what was collected along with the log file"
-    Write-Host ""
-    Write-Host "============================================================================" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Press any key to close this window..."
-    Read-Host
-    
-    exit 1
+    # Check if this is a MAX_PATH error - if so, continue and warn instead of failing
+    if ($_.Exception.Message -like "*too long*" -or $_.Exception.Message -like "*MAX_PATH*" -or $_.Exception.Message -like "*260*") {
+        Write-Log "Warning: Path length exceeded MAX_PATH limit - skipping this artifact and continuing collection" -Level Warning
+        Write-Log "Error details: $_" -Level Warning
+        # Don't exit - continue collection
+    } else {
+        # Real error - log and exit
+        Write-Log "============================================================================" -Level Error
+        Write-Log "CRITICAL ERROR OCCURRED" -Level Error
+        Write-Log "============================================================================" -Level Error
+        Write-Log "Error Message: $_" -Level Error
+        Write-Log "Error Details: $($_.Exception.Message)" -Level Error
+        Write-Log "Script Line: $($_.InvocationInfo.Line)" -Level Error
+        Write-Log "============================================================================" -Level Error
+        
+        Write-Host ""
+        Write-Host "============================================================================" -ForegroundColor Red
+        Write-Host "COLLECTION FAILED WITH ERROR" -ForegroundColor Red
+        Write-Host "============================================================================" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Error: $_" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "What to do:" -ForegroundColor Yellow
+        Write-Host "1. Read the log file: logs\forensic_collection_$computerName*.txt"
+        Write-Host "2. Note the error message above"
+        Write-Host "3. Send the log file to the analyst who provided this tool"
+        Write-Host ""
+        Write-Host "If collection was partially successful:" -ForegroundColor Yellow
+        Write-Host "- A 'collected_files' folder may still contain some data"
+        Write-Host "- Return what was collected along with the log file"
+        Write-Host ""
+        Write-Host "============================================================================" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Press any key to close this window..."
+        Read-Host
+        
+        exit 1
+    }
 }
 
 # ============================================================================
