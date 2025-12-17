@@ -5,24 +5,37 @@ REM Batch wrapper with fallback support for restricted environments
 REM Derived from the archived Cado-Batch project; independently maintained
 REM ============================================================================
 
+echo [DEBUG] Script started at %DATE% %TIME%
+echo [DEBUG] Raw script path: %~dp0
+echo [DEBUG] Script name: %~nx0
+echo [DEBUG] Current directory before any changes: %CD%
 
 setlocal enabledelayedexpansion
 
+echo [DEBUG] After setlocal - CD is: %CD%
 
 REM Change to script directory - must happen before any other operations
+echo [DEBUG] Attempting pushd to: "%~dp0"
 pushd "%~dp0" 2>nul
 if errorlevel 1 (
+    echo [ERROR] pushd failed with result: %ERRORLEVEL%
+    echo [ERROR] Cannot access script directory
+    echo [ERROR] Directory: %~dp0
     pause
     exit /b 1
 )
 
+echo [DEBUG] pushd successful
+echo [DEBUG] Current directory after pushd: %CD%
 
 REM ============================================================================
 REM Check for Administrator Privileges
 REM ============================================================================
 
+echo [DEBUG] Checking admin privileges
 openfiles >nul 2>&1
 set ADMIN_CHECK=%ERRORLEVEL%
+echo [DEBUG] Admin check result: %ADMIN_CHECK%
 
 if errorlevel 1 (
     color 0C
@@ -48,8 +61,11 @@ REM ============================================================================
 REM Display Welcome Banner
 REM ============================================================================
 
+echo [DEBUG] Admin check passed, displaying banner
 color 0A
 title Host Evidence Runner - Starting Collection
+echo [DEBUG] About to clear screen (cls)
+REM cls - DISABLED FOR DEBUGGING
 echo.
 echo ============================================================================
 echo.
@@ -80,9 +96,11 @@ REM ============================================================================
 REM Verify PowerShell Availability
 REM ============================================================================
 
+echo [DEBUG] Starting PowerShell check
 echo Checking PowerShell availability
 powershell -NoProfile -Command "Write-Host 'PowerShell OK'" >nul 2>&1
 set PS_CHECK=%ERRORLEVEL%
+echo [DEBUG] PowerShell check result: %PS_CHECK%
 
 if errorlevel 1 (
     color 0C
@@ -107,7 +125,22 @@ REM ============================================================================
 REM Verify Required Files
 REM ============================================================================
 
+echo [DEBUG] Starting file verification
+echo [DEBUG] Current directory: %CD%
+echo [DEBUG] Listing all files in current directory:
+dir /b
+echo [DEBUG] End of file listing
+echo.
+
 echo Checking for required files
+echo [DEBUG] Looking for: run-collector.ps1
+echo [DEBUG] Full path would be: %CD%\run-collector.ps1
+
+if exist "run-collector.ps1" (
+    echo [DEBUG] SUCCESS: run-collector.ps1 FOUND
+) else (
+    echo [DEBUG] FAILURE: run-collector.ps1 NOT FOUND
+)
 
 if not exist "run-collector.ps1" (
     color 0C
@@ -139,12 +172,16 @@ REM ============================================================================
 REM Analyst Workstation Parameter (defaults to localhost)
 REM ============================================================================
 
+echo [DEBUG] Reached analyst workstation prompt section
 set /p analyst_ws="Enter analyst workstation hostname (default: localhost): "
+echo [DEBUG] User entered: [!analyst_ws!]
 
 REM If user pressed Enter without input, use localhost as default
 if "!analyst_ws!"=="" set "analyst_ws=localhost"
+echo [DEBUG] After default check, analyst_ws is: [!analyst_ws!]
 
 set "ANALYST_PARAM=-AnalystWorkstation '!analyst_ws!'"
+echo [DEBUG] ANALYST_PARAM set to: !ANALYST_PARAM!
 echo.
 echo Files will be transferred to: !analyst_ws!
 if "!analyst_ws!"=="localhost" (
@@ -170,16 +207,22 @@ echo Press any key to start the collection process
 pause >nul
 
 echo.
+echo [DEBUG] Preparing to run PowerShell script
+echo [DEBUG] Script path: "%~dp0run-collector.ps1"
+echo [DEBUG] Full command will be: powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-collector.ps1" !ANALYST_PARAM!
 echo.
 echo Running collection script
 echo Command: powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-collector.ps1" !ANALYST_PARAM!
 echo.
 
 REM Execute the PowerShell collection script
+echo [DEBUG] Executing PowerShell now
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-collector.ps1" !ANALYST_PARAM!
 
 set COLLECTION_RESULT=%ERRORLEVEL%
 echo.
+echo [DEBUG] PowerShell completed
+echo [DEBUG] Collection exit code: %COLLECTION_RESULT%
 echo PowerShell exited with code: %COLLECTION_RESULT%
 echo.
 
@@ -229,7 +272,11 @@ if %COLLECTION_RESULT% EQU 0 (
 
 echo ============================================================================
 echo.
+echo [DEBUG] Script ending - about to pause and exit
+echo [DEBUG] Final COLLECTION_RESULT: %COLLECTION_RESULT%
 echo Press any key to close this window
 pause >nul
+echo [DEBUG] After pause, about to popd and exit
 popd
+echo [DEBUG] After popd, about to exit with code: %COLLECTION_RESULT%
 exit /b %COLLECTION_RESULT%

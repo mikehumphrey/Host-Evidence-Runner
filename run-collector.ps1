@@ -46,6 +46,15 @@ if (-not $root -or -not (Test-Path $root)) {
 
 Set-Location -Path (Resolve-Path $root)
 
+# Unblock files to prevent DLL initialization errors (files extracted from ZIP are often blocked)
+Write-Host "Unblocking files (if needed)..." -ForegroundColor Cyan
+try {
+    Get-ChildItem -Path $root -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+    Write-Host "Files unblocked successfully." -ForegroundColor Green
+} catch {
+    Write-Verbose "Could not unblock all files (may not be necessary): $_"
+}
+
 $collect = Join-Path $root 'source\collect.ps1'
 if (-not (Test-Path $collect)) {
     Write-Host "collect.ps1 not found at $collect" -ForegroundColor Red
@@ -93,15 +102,17 @@ if ($AnalystWorkstation) {
 }
 
 try {
-    $collectArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $collect, '-RootPath', $root, '-Verbose')
-    if ($NoZip) {
-        $collectArgs += '-NoZip'
-    }
-    if ($AnalystWorkstation) {
-        $collectArgs += @('-AnalystWorkstation', $AnalystWorkstation)
+    $collectArgs = @{
+        RootPath = $root
+        NoZip = $NoZip
+        AnalystWorkstation = $AnalystWorkstation
     }
     
-    & powershell @collectArgs
+    # Remove empty parameters
+    $collectArgs.Keys | Where-Object { -not $collectArgs[$_] -and $collectArgs[$_] -ne $false } | ForEach-Object { $collectArgs.Remove($_) }
+    
+    # Call collect.ps1 directly with proper parameter passing
+    & $collect @collectArgs
     $exitCode = $LASTEXITCODE
 } catch {
     Write-Host "Collection failed: $_" -ForegroundColor Red

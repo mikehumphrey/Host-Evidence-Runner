@@ -11,7 +11,8 @@ param(
     [string]$AnalystWorkstation
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
+$ProgressPreference = 'SilentlyContinue'
 
 # Determine script path and root
 if ($RootPath) {
@@ -65,15 +66,23 @@ function Write-Log {
 }
 
 # Start logging
-Write-Log "============================================================================"
-Write-Log "Host Evidence Runner (HER) - Collection Started"
-Write-Log "Derived from the archived Cado-Batch project; independently maintained"
-Write-Log "============================================================================"
-Write-Log "Computer: $computerName"
-Write-Log "User: $env:USERNAME"
-Write-Log "Script Location: $scriptPath"
-Write-Log "PowerShell Version: $($PSVersionTable.PSVersion)"
-Write-Log "OS Version: $([System.Environment]::OSVersion)"
+try {
+    Write-Log "============================================================================"
+    Write-Log "Host Evidence Runner (HER) - Collection Started"
+    Write-Log "Derived from the archived Cado-Batch project; independently maintained"
+    Write-Log "============================================================================"
+    Write-Log "Computer: $computerName"
+    Write-Log "User: $env:USERNAME"
+    Write-Log "Script Location: $scriptPath"
+    Write-Log "Script Root: $scriptRoot"
+    Write-Log "PowerShell Version: $($PSVersionTable.PSVersion)"
+    Write-Log "OS Version: $([System.Environment]::OSVersion)"
+} catch {
+    Write-Host "FATAL ERROR during initialization: $_" -ForegroundColor Red
+    Write-Host "Error details: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Red
+    exit 1
+}
 
 # Safe path join to force string casting and avoid array-to-string binding issues
 function SafeJoinPath {
@@ -81,9 +90,6 @@ function SafeJoinPath {
         [Parameter(Mandatory)]$Parent,
         [Parameter(Mandatory)]$Child
     )
-    Write-Verbose "DEBUG SafeJoinPath: Parent raw type=$($Parent.GetType().FullName)"
-    Write-Verbose "DEBUG SafeJoinPath: Child raw type=$($Child.GetType().FullName)"
-    
     # Handle arrays by taking first element
     if ($Parent -is [array]) {
         Write-Log "WARNING: Parent is an array with $($Parent.Count) elements, taking first" -Level Warning
@@ -98,10 +104,8 @@ function SafeJoinPath {
     $parentStr = [string]$Parent
     $childStr = [string]$Child
     
-    Write-Verbose "DEBUG SafeJoinPath: Parent='$parentStr', Child='$childStr'"
     try {
         $result = Join-Path $parentStr $childStr
-        Write-Verbose "DEBUG SafeJoinPath: result='$result'"
         return $result
     } catch {
         Write-Log "ERROR in SafeJoinPath: $_" -Level Error
@@ -124,35 +128,44 @@ function Resolve-BinPath {
     throw "Required tools folder not found. Expected one of: $($Candidates -join ', ')"
 }
 
-Write-Log "DEBUG: scriptPath type: $($scriptPath.GetType().FullName), value: $scriptPath"
-$parentPath = Split-Path $scriptPath -Parent
-Write-Log "DEBUG: parentPath type: $($parentPath.GetType().FullName), value: $parentPath"
-
-Write-Log "DEBUG: About to call SafeJoinPath with scriptPath and 'bins'"
-$bin1 = SafeJoinPath $scriptPath 'bins'
-Write-Log "DEBUG: bin1 = $bin1"
-
-Write-Log "DEBUG: About to call SafeJoinPath with parentPath and 'tools\\bins'"
-$bin2 = SafeJoinPath $parentPath 'tools\bins'
-Write-Log "DEBUG: bin2 = $bin2"
-
-Write-Log "DEBUG: About to call SafeJoinPath with parentPath and 'bins'"
-$bin3 = SafeJoinPath $parentPath 'bins'
-Write-Log "DEBUG: bin3 = $bin3"
-
-$binCandidates = @($bin1, $bin2, $bin3)
-
-Write-Log "DEBUG: binCandidates count: $($binCandidates.Count)"
-for ($i = 0; $i -lt $binCandidates.Count; $i++) {
-    Write-Log "DEBUG: binCandidates[$i] type: $($binCandidates[$i].GetType().FullName), value: $($binCandidates[$i])"
+try {
+    Write-Verbose "Resolving tools directory..."
+    $parentPath = Split-Path $scriptPath -Parent
+    
+    $bin1 = SafeJoinPath $scriptPath 'bins'
+    $bin2 = SafeJoinPath $parentPath 'tools\bins'
+    $bin3 = SafeJoinPath $parentPath 'bins'
+    
+    $binCandidates = @($bin1, $bin2, $bin3)
+    
+    Write-Verbose "Tools path candidates: $($binCandidates -join ', ')"
+    
+    $binPath = Resolve-BinPath -Candidates $binCandidates
+} catch {
+    Write-Host ""
+    Write-Host "============================================================================" -ForegroundColor Red
+    Write-Host "FATAL ERROR: Tools Directory Not Found" -ForegroundColor Red
+    Write-Host "============================================================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "The required forensic tools could not be located." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Expected locations:" -ForegroundColor Yellow
+    Write-Host "  - $scriptPath\bins" -ForegroundColor White
+    Write-Host "  - $parentPath\tools\bins" -ForegroundColor White
+    Write-Host "  - $parentPath\bins" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Current working directory: $(Get-Location)" -ForegroundColor White
+    Write-Host "Script root: $scriptRoot" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Please ensure the HER-Collector was extracted completely with all subfolders." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Error details: $_" -ForegroundColor Red
+    Write-Host "============================================================================" -ForegroundColor Red
+    exit 1
 }
-
-$binPath = Resolve-BinPath -Candidates $binCandidates
 
 function Get-BinFile {
     param([Parameter(Mandatory)][string]$Name)
-    Write-Verbose "DEBUG Get-BinFile: binPath type=$($binPath.GetType().FullName), Name type=$($Name.GetType().FullName)"
-    Write-Verbose "DEBUG Get-BinFile: binPath='$binPath', Name='$Name'"
     try {
         # Check if a 64-bit version exists (e.g., hashdeep64.exe instead of hashdeep.exe)
         $baseName = [System.IO.Path]::GetFileNameWithoutExtension($Name)
@@ -161,13 +174,11 @@ function Get-BinFile {
         $path64 = Join-Path ([string]$binPath) ([string]$name64)
         
         if (Test-Path $path64) {
-            Write-Verbose "DEBUG Get-BinFile: Using 64-bit version: $path64"
             return $path64
         }
         
         # Fall back to 32-bit version
         $result = Join-Path ([string]$binPath) ([string]$Name)
-        Write-Verbose "DEBUG Get-BinFile: result='$result'"
         return $result
     } catch {
         Write-Log "ERROR in Get-BinFile: $_" -Level Error
@@ -329,11 +340,22 @@ try {
 
     Write-Verbose "Collecting MFT and LogFile from C: drive"
     Write-Log "Collecting MFT and LogFile from C: drive"
-    Start-Process -FilePath (Get-BinFile 'RawCopy.exe') -ArgumentList "/FileNamePath:C:0" -Wait -NoNewWindow
-    Start-Process -FilePath (Get-BinFile 'RawCopy.exe') -ArgumentList "/FileNamePath:c:\$LogFile" -Wait -NoNewWindow
-
-    Move-Item -Path (Get-BinFile '$MFT') -Destination "$outputDir\MFT_C.bin" -Force -ErrorAction SilentlyContinue
-    Move-Item -Path (Get-BinFile '$LogFile') -Destination "$outputDir\LogFile_C.bin" -Force -ErrorAction SilentlyContinue
+    
+    # RawCopy outputs to current directory by default - simpler than specifying OutputPath with spaces
+    $rawCopyExe = Get-BinFile 'RawCopy.exe'
+    $currentDir = Get-Location
+    
+    # Collect MFT
+    Start-Process -FilePath $rawCopyExe -ArgumentList '/FileNamePath:C:0' -Wait -NoNewWindow -WorkingDirectory $currentDir
+    if (Test-Path (Join-Path $currentDir '$MFT')) {
+        Move-Item -Path (Join-Path $currentDir '$MFT') -Destination "$outputDir\MFT_C.bin" -Force
+    }
+    
+    # Collect LogFile
+    Start-Process -FilePath $rawCopyExe -ArgumentList "/FileNamePath:c:\$LogFile" -Wait -NoNewWindow -WorkingDirectory $currentDir
+    if (Test-Path (Join-Path $currentDir '$LogFile')) {
+        Move-Item -Path (Join-Path $currentDir '$LogFile') -Destination "$outputDir\LogFile_C.bin" -Force
+    }
     Write-Host "Successfully collected MFT and LogFile."
     Write-Log "Successfully collected MFT and LogFile."
     Add-CollectionResult -ItemName "MFT and LogFile" -Status Success
@@ -410,9 +432,20 @@ try {
     if (Test-Path $prefetchDir) {
         Write-Verbose "Collecting prefetch files from $prefetchDir"
         try {
-            Copy-Item -Path "$prefetchDir\*.pf" -Destination "$outputDir\Prefetch\" -Recurse -Force -ErrorAction Stop
+            $prefetchDestination = Join-Path $outputDir "Prefetch"
+            if (-not (Test-Path $prefetchDestination)) {
+                New-Item -ItemType Directory -Path $prefetchDestination -Force | Out-Null
+            }
+            $prefetchFiles = Get-ChildItem -Path $prefetchDir -Filter "*.pf" -ErrorAction Stop
+            $prefetchFiles | ForEach-Object {
+                try {
+                    Copy-Item -Path $_.FullName -Destination $prefetchDestination -Force -ErrorAction Stop
+                } catch {
+                    Write-Verbose "Could not copy $($_.Name): $_"
+                }
+            }
             Write-Host "Successfully collected prefetch files."
-            Write-Log "Successfully collected prefetch files"
+            Write-Log "Successfully collected prefetch files ($($prefetchFiles.Count) files)"
             Add-CollectionResult -ItemName "Prefetch Files" -Status Success
         } catch {
             Write-Log "Warning: Could not collect all prefetch files: $_" -Level Warning
@@ -483,9 +516,9 @@ try {
             Write-Log "Successfully collected Amcache.hve"
             Add-CollectionResult -ItemName "Amcache.hve" -Status Success
         } catch {
-            Write-Log "Warning: Could not collect Amcache.hve (file may be locked): $_" -Level Warning
-            Write-Host "Warning: Amcache.hve collection failed (file locked) - continuing..." -ForegroundColor Yellow
-            Add-CollectionResult -ItemName "Amcache.hve" -Status Warning -Message "File locked: $_"
+            Write-Log "Note: Amcache.hve is locked - will attempt collection with RawCopy during user activity phase" -Level Info
+            Write-Verbose "Amcache.hve is locked - will use RawCopy later"
+            # Don't add a warning result here - RawCopy will handle it later
         }
     }
 
@@ -505,9 +538,12 @@ try {
 
     # Collect USN Journal
     Write-Verbose "Collecting USN Journal (\$UsnJrnl)"
-    Start-Process -FilePath (Get-BinFile 'RawCopy.exe') -ArgumentList "/FileNamePath:C:\$Extend\$UsnJrnl" -Wait -NoNewWindow
-    if (Test-Path (Get-BinFile '$UsnJrnl')) {
-        Move-Item -Path (Get-BinFile '$UsnJrnl') -Destination "$outputDir\UsnJrnl_C.bin" -Force
+    $rawCopyExe = Get-BinFile 'RawCopy.exe'
+    $currentDir = Get-Location
+    
+    Start-Process -FilePath $rawCopyExe -ArgumentList "/FileNamePath:C:\$Extend\$UsnJrnl" -Wait -NoNewWindow -WorkingDirectory $currentDir
+    if (Test-Path (Join-Path $currentDir '$UsnJrnl')) {
+        Move-Item -Path (Join-Path $currentDir '$UsnJrnl') -Destination "$outputDir\UsnJrnl_C.bin" -Force
         Write-Host "Successfully collected USN Journal."
     } else {
         Write-Warning "Could not find the collected USN Journal. RawCopy may have failed."
@@ -531,7 +567,17 @@ try {
             if (Test-Path $ntdsPath) {
                 Write-Log "  - Attempting to copy NTDS.dit (Active Directory database)"
                 $rawCopyPath = Get-BinFile 'RawCopy.exe'
-                & $rawCopyPath /FileNamePath:$ntdsPath /OutputPath:"$outputDir\ActiveDirectory" | Out-Null
+                $ntdsOutputPath = Join-Path $outputDir 'ActiveDirectory'
+                if (-not (Test-Path $ntdsOutputPath)) {
+                    New-Item -ItemType Directory -Path $ntdsOutputPath -Force | Out-Null
+                }
+                
+                # Copy to temp, then move (avoids path issues)
+                $currentDir = Get-Location
+                Start-Process -FilePath $rawCopyPath -ArgumentList "/FileNamePath:$ntdsPath" -Wait -NoNewWindow -WorkingDirectory $currentDir
+                if (Test-Path (Join-Path $currentDir 'ntds.dit')) {
+                    Move-Item -Path (Join-Path $currentDir 'ntds.dit') -Destination $ntdsOutputPath -Force
+                }
                 Write-Host "Successfully collected Active Directory database (NTDS.dit)." -ForegroundColor Green
                 Add-CollectionResult -ItemName "Active Directory Database (NTDS.dit)" -Status Success
             }
@@ -1114,8 +1160,11 @@ try {
                     
                     if (Test-Path $rawCopyPath) {
                         Write-Log "  - Attempting to copy SRUM database with RawCopy.exe"
-                        $outputSRUM = SafeJoinPath $OutputPath "SRUM_Database.dat"
-                        & $rawCopyPath /FileNamePath:$srumDbPath /OutputPath:$OutputPath | Out-Null
+                        $currentDir = Get-Location
+                        Start-Process -FilePath $rawCopyPath -ArgumentList "/FileNamePath:$srumDbPath" -Wait -NoNewWindow -WorkingDirectory $currentDir
+                        if (Test-Path (Join-Path $currentDir 'SRUDB.dat')) {
+                            Move-Item -Path (Join-Path $currentDir 'SRUDB.dat') -Destination (SafeJoinPath $OutputPath 'SRUM_Database.dat') -Force
+                        }
                         Write-Log "  - SRUM database copied successfully"
                     } else {
                         # Try direct copy (may fail if locked)
@@ -1150,7 +1199,11 @@ try {
                     
                     if (Test-Path $rawCopyPath) {
                         Write-Log "  - Attempting to copy Amcache with RawCopy.exe"
-                        & $rawCopyPath /FileNamePath:$amcachePath /OutputPath:$OutputPath | Out-Null
+                        $currentDir = Get-Location
+                        Start-Process -FilePath $rawCopyPath -ArgumentList "/FileNamePath:$amcachePath" -Wait -NoNewWindow -WorkingDirectory $currentDir
+                        if (Test-Path (Join-Path $currentDir 'Amcache.hve')) {
+                            Move-Item -Path (Join-Path $currentDir 'Amcache.hve') -Destination (SafeJoinPath $OutputPath 'Amcache.hve') -Force
+                        }
                         Write-Log "  - Amcache copied successfully"
                     } else {
                         # Try direct copy
@@ -1371,6 +1424,21 @@ if (-not $NoZip) {
         $zipFile = Join-Path $outputRoot "collected_files.zip"
         if (Test-Path $zipFile) {
             Remove-Item $zipFile -Force
+        }
+        
+        # Sanitize file timestamps to avoid ZIP format limitations (must be between 1980-2107)
+        $minDate = [DateTime]::Parse("1980-01-01")
+        $maxDate = [DateTime]::Parse("2107-12-31")
+        Get-ChildItem -Path $outputDir -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+            try {
+                if ($_.LastWriteTime -lt $minDate) {
+                    $_.LastWriteTime = $minDate
+                } elseif ($_.LastWriteTime -gt $maxDate) {
+                    $_.LastWriteTime = $maxDate
+                }
+            } catch {
+                # Ignore timestamp sanitization errors
+            }
         }
         
         Compress-Archive -Path "$outputDir\*" -DestinationPath $zipFile -ErrorAction Stop

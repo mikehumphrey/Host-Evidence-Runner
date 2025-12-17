@@ -7,15 +7,52 @@ A PowerShell-based forensic evidence collector for modern Windows systems (Windo
 
 **Origin:** Derived from the archived Cado-Batch project; independently maintained under Apache 2.0 license.
 
-## Release Usage (sysadmin)
+## Quick Start for Sysadmins
 
-1. Download or copy the latest `HER-Collector.zip` (built via `Build-Release.ps1`).
-2. Extract to a working folder (e.g., `C:\temp\HER-Collector` or a USB drive).
-3. Run `run-collector.ps1` as Administrator from the extracted root (or use `RUN_COLLECT.bat` if PowerShell execution policy is restrictive).
-4. The script creates output in an investigation-style folder structure:
-   - `investigations\[HOSTNAME]\[TIMESTAMP]\collected_files\` - collected artifacts
-   - `investigations\[HOSTNAME]\[TIMESTAMP]\forensic_collection_[HOSTNAME]_[TIMESTAMP].txt` - collection log
-   - `investigations\[HOSTNAME]\[TIMESTAMP]\collected_files.zip` - compressed archive
+**Prerequisites:** PowerShell running as Administrator
+
+Copy and paste these commands **one line at a time** into PowerShell ISE or PowerShell terminal:
+
+```powershell
+# Step 1: Create working directory
+Set-Location -Path C:\Temp
+
+# Step 2: Copy collector from network share
+Copy-Item -Path "\\moasscfs01\software$\HER-Collector.zip" -Destination C:\Temp\
+
+# Step 3: Extract the collector
+Expand-Archive -Path C:\Temp\HER-Collector.zip -DestinationPath C:\Temp\HER-Collector -Force
+
+# Step 3b: Unblock extracted files (CRITICAL - prevents DLL initialization errors)
+Get-ChildItem -Path C:\Temp\HER-Collector -Recurse | Unblock-File
+
+# Step 3c: Verify extraction (optional but recommended)
+Test-Path C:\Temp\HER-Collector\tools\bins\RawCopy.exe
+
+# Step 4: Run the collection (non-interactive, works with scheduled tasks)
+C:\Temp\HER-Collector\run-collector.ps1 -AnalystWorkstation "localhost"
+
+# For debugging with verbose output (optional - not recommended for automated runs):
+# C:\Temp\HER-Collector\run-collector.ps1 -AnalystWorkstation "localhost" -Verbose
+
+# For large collections or to skip compression:
+# C:\Temp\HER-Collector\run-collector.ps1 -AnalystWorkstation "localhost" -NoZip
+
+# Alternative: If -AnalystWorkstation is not used, manually copy results to analyst workstation
+# Replace ANALYST_HOSTNAME and TIMESTAMP with actual values shown in collection output
+# ROBOCOPY "C:\Temp\HER-Collector\investigations" "\\ANALYST_HOSTNAME\c$\Temp\Investigations\%COMPUTERNAME%\TIMESTAMP" /E /DCOPY:T /COPY:DAT /LOG+:"ROBOCopyLog.txt" /TEE
+```
+
+**What happens:**
+- Collection creates folder: `C:\Temp\HER-Collector\investigations\[HOSTNAME]\[TIMESTAMP]\`
+- If `-AnalystWorkstation` is specified, files are automatically transferred after collection
+- Without `-AnalystWorkstation`, the collection stays local (use manual ROBOCOPY if needed)
+- Look for `COLLECTION_SUMMARY.txt` and `forensic_collection_*.txt` in the output folder
+
+**Troubleshooting:**
+- If Step 4 fails with execution policy error, run: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force`
+- Verify network share access before Step 2
+- Collection takes 15-45 minutes depending on system size
 
 ### Tool layout (single bins copy)
 - Tools live once under `tools\bins` in the release. The collector auto-resolves tools from `source\bins` (if present) or falls back to `..\tools\bins`, so only one copy is needed.
@@ -213,3 +250,30 @@ source\Analyze-Investigation.ps1 -GenerateReport -CollectionPath "investigations
 ```
 
 Outputs include per-collection `Investigation_Summary.md`, aggregated `Host_Summary.md`, and top-level `Investigation_Summary.md`.
+
+## Automated & Scheduled Execution
+
+HER is designed to run non-interactively for integration with management tools and scheduled tasks:
+
+### Windows Task Scheduler
+```powershell
+# Example: Schedule daily collection at 2 AM
+$trigger = New-ScheduledTaskTrigger -Daily -At 2am
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument `
+  "-NoProfile -ExecutionPolicy Bypass -File C:\HER-Collector\run-collector.ps1 -AnalystWorkstation 'analyst-server'"
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+Register-ScheduledTask -TaskName "HER-DailyCollection" -Trigger $trigger -Action $action -Principal $principal
+```
+
+### Group Policy / Management Tool
+```powershell
+C:\HER-Collector\run-collector.ps1 -AnalystWorkstation "analyst-workstation"
+```
+
+**Key features for automation:**
+- **Non-interactive**: No prompts or dialogs, safe for scheduled/unattended execution
+- **No verbose output**: Production mode silent (use `-Verbose` only for debugging)
+- **Auto-unblock**: Extracted files are automatically unblocked on first run
+- **Large collections**: Handles 30GB+ collections with automatic compression handling
+- **Error resilience**: Continues collection even if individual artifacts fail
+- **Comprehensive logging**: All results captured in `COLLECTION_SUMMARY.txt` and detailed log file
