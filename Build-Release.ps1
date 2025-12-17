@@ -46,14 +46,16 @@ Write-Host "Building minimal collector release to '$OutputDir'..." -ForegroundCo
 
 # Layout
 $layout = @(
-    @{ src = Join-Path $root 'run-collector.ps1';         dest = Join-Path $OutputDir 'run-collector.ps1' },
-    @{ src = Join-Path $root 'RUN_COLLECT.bat';           dest = Join-Path $OutputDir 'RUN_COLLECT.bat' },
-    @{ src = Join-Path $root 'source\collect.ps1';            dest = Join-Path $OutputDir 'source\collect.ps1' },
-    @{ src = Join-Path $root 'tools\bins';                    dest = Join-Path $OutputDir 'tools\bins' },
-    @{ src = Join-Path $root 'templates';                      dest = Join-Path $OutputDir 'templates' },
-    @{ src = Join-Path $root 'README.md';                      dest = Join-Path $OutputDir 'README.md' },
-    @{ src = Join-Path $root 'RELEASE_NOTES.md';              dest = Join-Path $OutputDir 'RELEASE_NOTES.md' },
-    @{ src = Join-Path $root 'VALIDATION_REPORT.md';         dest = Join-Path $OutputDir 'VALIDATION_REPORT.md' }
+    @{ src = Join-Path $root 'run-collector.ps1';                      dest = Join-Path $OutputDir 'run-collector.ps1' },
+    @{ src = Join-Path $root 'RUN_COLLECT.bat';                        dest = Join-Path $OutputDir 'RUN_COLLECT.bat' },
+    @{ src = Join-Path $root 'source\collect.ps1';                     dest = Join-Path $OutputDir 'source\collect.ps1' },
+    @{ src = Join-Path $root 'tools\bins';                             dest = Join-Path $OutputDir 'tools\bins' },
+    @{ src = Join-Path $root 'templates';                               dest = Join-Path $OutputDir 'templates' },
+    @{ src = Join-Path $root 'README.md';                               dest = Join-Path $OutputDir 'README.md' },
+    @{ src = Join-Path $root 'RELEASE_NOTES.md';                       dest = Join-Path $OutputDir 'RELEASE_NOTES.md' },
+    @{ src = Join-Path $root 'docs\sysadmin\ANALYST_WORKSTATION_GUIDE.md'; dest = Join-Path $OutputDir 'docs\ANALYST_WORKSTATION_GUIDE.md' },
+    @{ src = Join-Path $root 'LICENSE';                                 dest = Join-Path $OutputDir 'LICENSE' },
+    @{ src = Join-Path $root 'NOTICE';                                  dest = Join-Path $OutputDir 'NOTICE' }
 )
 
 foreach ($item in $layout) {
