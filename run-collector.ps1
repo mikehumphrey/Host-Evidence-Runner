@@ -105,11 +105,12 @@ try {
     $collectArgs = @{
         RootPath = $root
         NoZip = $NoZip
-        AnalystWorkstation = $AnalystWorkstation
     }
     
-    # Remove empty parameters
-    $collectArgs.Keys | Where-Object { -not $collectArgs[$_] -and $collectArgs[$_] -ne $false } | ForEach-Object { $collectArgs.Remove($_) }
+    # Only add AnalystWorkstation if it has a value
+    if ($AnalystWorkstation -and $AnalystWorkstation.Trim()) {
+        $collectArgs['AnalystWorkstation'] = $AnalystWorkstation.Trim()
+    }
     
     # Call collect.ps1 directly with proper parameter passing
     & $collect @collectArgs

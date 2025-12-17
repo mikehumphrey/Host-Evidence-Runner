@@ -1534,14 +1534,23 @@ if ($AnalystWorkstation) {
     Write-Log "============================================================================"
     
     try {
-        # Normalize analyst workstation (remove backslashes if provided)
-        $targetHost = $AnalystWorkstation -replace '\\\\', '' -replace '\\', ''
+        # Normalize analyst workstation (remove backslashes if provided, trim whitespace)
+        $targetHost = $AnalystWorkstation.Trim() -replace '\\\\', '' -replace '\\', ''
         
-        # Handle localhost specially
+        # Validate target host is not empty after normalization
+        if (-not $targetHost) {
+            throw "AnalystWorkstation parameter is empty or invalid"
+        }
+        
+        # Handle localhost specially - use local path without UNC
         if ($targetHost -eq 'localhost' -or $targetHost -eq '127.0.0.1' -or $targetHost -eq $env:COMPUTERNAME) {
             $destinationPath = "C:\Temp\Investigations\$computerName\$timestamp"
+            $isLocalhost = $true
+            Write-Log "Using localhost transfer mode (local filesystem copy)"
         } else {
             $destinationPath = "\\$targetHost\c`$\Temp\Investigations\$computerName\$timestamp"
+            $isLocalhost = $false
+            Write-Log "Using remote transfer mode (UNC path to $targetHost)"
         }
         
         Write-Log "Target destination: $destinationPath"
@@ -1564,7 +1573,7 @@ if ($AnalystWorkstation) {
         Write-Host ""
         
         # Test network connectivity if not localhost
-        if ($targetHost -ne 'localhost' -and $targetHost -ne '127.0.0.1' -and $targetHost -ne $env:COMPUTERNAME) {
+        if (-not $isLocalhost) {
             Write-Log "Testing connectivity to $targetHost..."
             $pingResult = Test-Connection -ComputerName $targetHost -Count 1 -Quiet -ErrorAction SilentlyContinue
             
@@ -1574,13 +1583,26 @@ if ($AnalystWorkstation) {
             } else {
                 Write-Log "Successfully connected to $targetHost"
             }
+        } else {
+            Write-Log "Localhost detected - skipping network connectivity test"
         }
         
         # Create destination directory structure
+        # For localhost, ensure C:\Temp exists first
+        if ($isLocalhost) {
+            $tempRoot = "C:\Temp"
+            if (-not (Test-Path $tempRoot)) {
+                Write-Log "Creating C:\Temp directory..."
+                New-Item -ItemType Directory -Path $tempRoot -Force -ErrorAction Stop | Out-Null
+            }
+        }
+        
         $destParent = Split-Path $destinationPath -Parent
         if (-not (Test-Path $destParent)) {
-            Write-Log "Creating destination directory structure..."
+            Write-Log "Creating destination directory structure: $destParent"
             New-Item -ItemType Directory -Path $destParent -Force -ErrorAction Stop | Out-Null
+        } else {
+            Write-Log "Destination parent directory already exists: $destParent"
         }
         
         # Build robocopy log path
