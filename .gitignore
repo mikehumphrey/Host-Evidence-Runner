@@ -13,7 +13,7 @@ temp/
 *.swp
 
 # Investigation artifacts and evidence
-investigations/
+investigations/*
 **/collected_files/
 forensic_collection_*.txt
 DEPLOYMENT_TRACKING.txt

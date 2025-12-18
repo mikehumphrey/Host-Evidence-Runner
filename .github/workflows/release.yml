@@ -1,0 +1,78 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.1
+
+permissions:
+  contents: write  # Required to create releases
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Extract version from tag
+        id: get_version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "Version: $version"
+      
+      - name: Build release package
+        shell: pwsh
+        run: |
+          .\Build-GitHubRelease.ps1 -Version "${{ steps.get_version.outputs.version }}" -SkipZip
+      
+      - name: Create ZIP archive
+        shell: pwsh
+        run: |
+          $version = "${{ steps.get_version.outputs.version }}"
+          $releaseDir = "releases\v$version"
+          $zipPath = "releases\HER-v$version.zip"
+          
+          Compress-Archive -Path "$releaseDir\*" -DestinationPath $zipPath -Force
+          
+          echo "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
+          echo "Created: $zipPath"
+      
+      - name: Read release notes
+        id: release_notes
+        shell: pwsh
+        run: |
+          $version = "${{ steps.get_version.outputs.version }}"
+          $notesPath = "releases\v$version\GITHUB_RELEASE_NOTES.txt"
+          
+          if (Test-Path $notesPath) {
+            $notes = Get-Content $notesPath -Raw
+            # GitHub Actions requires multiline output encoding
+            $notes = $notes -replace '%', '%25' -replace '\n', '%0A' -replace '\r', '%0D'
+            echo "notes=$notes" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "notes=Release v$version" >> $env:GITHUB_OUTPUT
+          }
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Host Evidence Runner v${{ steps.get_version.outputs.version }}
+          body: ${{ steps.release_notes.outputs.notes }}
+          files: |
+            releases/HER-v${{ steps.get_version.outputs.version }}.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Release complete
+        shell: pwsh
+        run: |
+          Write-Host "✅ Release v${{ steps.get_version.outputs.version }} published successfully!" -ForegroundColor Green
+          Write-Host "View at: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}" -ForegroundColor Cyan
