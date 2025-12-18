@@ -197,9 +197,30 @@ try {
     } else {
         Write-Host "[ERROR] API returned unexpected response" -ForegroundColor Red
         Write-Host ""
-        Write-Host "Response:" -ForegroundColor Yellow
-        Write-Host ($Response | ConvertTo-Json -Depth 3) -ForegroundColor White
-        Write-Host ""
+        
+        # Check if response is HTML (login page redirect)
+        $responseText = $Response | ConvertTo-Json -Depth 3
+        if ($responseText -like "*html*" -or $responseText -like "*Sign-In*") {
+            Write-Host "AUTHENTICATION ISSUE DETECTED" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "The API returned an HTML login page instead of JSON." -ForegroundColor Yellow
+            Write-Host "This typically means:" -ForegroundColor Yellow
+            Write-Host "  1. API credentials are invalid or expired" -ForegroundColor White
+            Write-Host "  2. API endpoint URL is incorrect" -ForegroundColor White
+            Write-Host "  3. Your organization requires OAuth/SAML instead of Basic Auth" -ForegroundColor White
+            Write-Host ""
+            Write-Host "RECOMMENDED ACTIONS:" -ForegroundColor Cyan
+            Write-Host "  1. Verify API credentials in Cortex XDR Console:" -ForegroundColor White
+            Write-Host "     Settings > Configurations > API Keys" -ForegroundColor Gray
+            Write-Host "  2. Regenerate API Key and API Key ID" -ForegroundColor White
+            Write-Host "  3. Verify API endpoint format (should be api-*.xdr.*.paloaltonetworks.com)" -ForegroundColor White
+            Write-Host "  4. Use manual procedure: See docs/sysadmin/CORTEX_XDR_MANUAL_PROCEDURE.md" -ForegroundColor White
+            Write-Host ""
+        } else {
+            Write-Host "Response:" -ForegroundColor Yellow
+            Write-Host $responseText -ForegroundColor White
+            Write-Host ""
+        }
         exit 1
     }
     
