@@ -443,6 +443,49 @@ $inv = "investigations\Case\SUSPECT-PC\20251218_120000"
 # - Phase3_Yara_Scan_Results.txt
 ```
 
+### Investigation Analysis Workflow Tool
+
+**RECOMMENDED:** Use the analysis template for efficient, repeatable investigations with parallel execution:
+
+```powershell
+# Step 1: Copy template to investigation folder
+Copy-Item "templates\Run-Investigation-Analysis.ps1" `
+    -Destination "investigations\Case\SUSPECT-PC\20251218_120000\"
+
+# Step 2: Navigate to investigation folder and edit
+cd investigations\Case\SUSPECT-PC\20251218_120000
+notepad .\Run-Investigation-Analysis.ps1
+
+# Step 3: Update configuration variables in the script:
+#   - $InvestigationPath (path to collection folder)
+#   - $InvestigationName (case identifier)
+#   - $EventLogKeywords (customize for your case: "drive.google.com", "chrome.exe", etc.)
+#   - $EventIDsToFilter (4663, 4656, 4624, 4688, etc.)
+#   - $MFTSearchPaths ("Google Drive", "Downloads", "Confidential", etc.)
+#   - Enable/disable phases ($ParseEventLogs=$true, $SearchMFT=$true, etc.)
+
+# Step 4: Run the analysis
+.\Run-Investigation-Analysis.ps1
+
+# The script orchestrates all phases with optimal parallelization:
+# Phase 1: Parse artifacts (parallel: EventLogs, MFT, Prefetch, Registry)
+# Phase 2: Search operations (sequential: requires Phase 1)
+# Phase 3: Additional analysis (parallel: Browser, Network, AD)
+# Phase 4: Yara scanning (if enabled)
+# Phase 5: Report generation
+```
+
+**Template Benefits:**
+- ✅ **3-4x faster:** Phase 1 parsing runs in parallel
+- ✅ **Customizable per case:** Edit search terms once, reuse for multiple hosts
+- ✅ **Progress tracking:** Real-time status of each operation
+- ✅ **Execution log:** Creates Analysis_Execution_Log.txt
+- ✅ **Git-safe:** Lives in investigations/ folder (not committed)
+- ✅ **Error resilient:** Continues on non-fatal errors
+- ✅ **Repeatable:** Same analysis for all hosts in investigation
+
+**File Location:** `templates/Run-Investigation-Analysis.ps1`
+
 ### Zimmerman Tool Invocation Reference
 
 ```powershell

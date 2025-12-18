@@ -1,5 +1,9 @@
 # Analyst Workstation Transfer Guide
 
+> **NOTE:** This document has been superseded by `COLLECTION_SUCCESS_GUIDE.md` which includes comprehensive transfer documentation. This file is retained for reference only and is NOT included in releases.
+>
+> **For Deployments:** Use `docs/sysadmin/COLLECTION_SUCCESS_GUIDE.md`
+
 ## Overview
 
 The `-AnalystWorkstation` parameter enables automatic transfer of collected forensic evidence to a designated analyst workstation via robocopy. This feature streamlines the collection-to-analysis workflow by eliminating manual file transfers.
