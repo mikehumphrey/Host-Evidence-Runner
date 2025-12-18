@@ -24,14 +24,20 @@
 # CONFIGURATION - UPDATE THESE VARIABLES FOR YOUR INVESTIGATION
 # ============================================================================
 
+# Project Root - Set this to the HER installation directory
+# Examples:
+#   C:\Dev\GitHub\Host-Evidence-Runner
+#   C:\Temp\HER-Collector
+#   \\analyst-pc\Forensics\Tools\HER
+$ProjectRoot = "C:\Temp\HER-Collector"  # UPDATE THIS TO YOUR HER INSTALLATION PATH
+
 # Investigation Details
 $InvestigationPath = "C:\Temp\Investigations\MOA-SD-PSDC01\20251217_162931"  # Full path to collection folder
 $InvestigationName = "Insider_Threat_GoogleDrive_Exfil"  # Short name for this investigation
 $AnalystName = "Michael Humphrey"  # Analyst conducting analysis
 
-# Path to Analyze-Investigation.ps1 script (relative from this folder)
-# Adjust based on where you copied this template
-$AnalyzeScript = "..\..\..\..\source\Analyze-Investigation.ps1"
+# Build paths from ProjectRoot (DO NOT MODIFY - these are calculated)
+$AnalyzeScript = Join-Path $ProjectRoot "source\Analyze-Investigation.ps1"
 
 # Analysis Options - Set to $true to enable
 $EnableFullAnalysis = $false  # If true, runs all modules (overrides individual settings)
@@ -40,8 +46,8 @@ $EnableParallelExecution = $true  # Run independent operations in parallel
 # Phase 1: Parsing Operations (can run in parallel)
 $ParseEventLogs = $true
 $ParseMFT = $true
-$ParsePrefetch = $true
-$ParseRegistry = $true
+$ParsePrefetch = $false  # Not yet implemented in CadoBatchAnalysis module
+$ParseRegistry = $false  # Not yet implemented in CadoBatchAnalysis module
 
 # Phase 2: Search Operations (requires Phase 1 completion)
 $SearchEventLogs = $true
@@ -120,6 +126,16 @@ $MFTSearchPaths = @(
 $ErrorActionPreference = 'Continue'
 
 # Validate configuration
+if (-not (Test-Path $ProjectRoot)) {
+    Write-Error "Project root directory not found: $ProjectRoot"
+    Write-Host "`nPlease update the `$ProjectRoot variable to point to your HER installation directory." -ForegroundColor Yellow
+    Write-Host "Examples:" -ForegroundColor Yellow
+    Write-Host "  C:\Dev\GitHub\Host-Evidence-Runner" -ForegroundColor White
+    Write-Host "  C:\Temp\HER-Collector" -ForegroundColor White
+    Write-Host "  \\analyst-pc\Forensics\Tools\HER`n" -ForegroundColor White
+    exit 1
+}
+
 if (-not (Test-Path $InvestigationPath)) {
     Write-Error "Investigation path not found: $InvestigationPath"
     exit 1
@@ -127,8 +143,11 @@ if (-not (Test-Path $InvestigationPath)) {
 
 if (-not (Test-Path $AnalyzeScript)) {
     Write-Error "Analyze-Investigation.ps1 script not found at: $AnalyzeScript"
-    Write-Host "Expected location: $AnalyzeScript" -ForegroundColor Yellow
-    Write-Host "Current directory: $PWD" -ForegroundColor Yellow
+    Write-Host "`nThe script expects to find Analyze-Investigation.ps1 at:" -ForegroundColor Yellow
+    Write-Host "  $AnalyzeScript" -ForegroundColor White
+    Write-Host "`nVerify that:" -ForegroundColor Yellow
+    Write-Host "  1. `$ProjectRoot is set correctly: $ProjectRoot" -ForegroundColor White
+    Write-Host "  2. The source\Analyze-Investigation.ps1 file exists in that location`n" -ForegroundColor White
     exit 1
 }
 
@@ -151,6 +170,7 @@ Write-Host "====================================================================
 Write-Host "Investigation: $InvestigationName" -ForegroundColor White
 Write-Host "Path: $InvestigationPath" -ForegroundColor White
 Write-Host "Analyst: $AnalystName" -ForegroundColor White
+Write-Host "Project Root: $ProjectRoot" -ForegroundColor White
 Write-Host "Start Time: $StartTime" -ForegroundColor White
 Write-Host "Parallel Execution: $EnableParallelExecution" -ForegroundColor White
 Write-Host "============================================================================`n" -ForegroundColor Cyan
