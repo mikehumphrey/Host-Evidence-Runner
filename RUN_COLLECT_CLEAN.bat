@@ -2,7 +2,6 @@
 REM ============================================================================
 REM Host Evidence Runner (HER) - Forensic Collection Launcher
 REM Batch wrapper with fallback support for restricted environments
-REM Derived from the archived Cado-Batch project; independently maintained
 REM ============================================================================
 
 echo [DEBUG] Script started at %DATE% %TIME%

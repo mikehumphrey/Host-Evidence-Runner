@@ -1,6 +1,6 @@
 # Directory Structure Guide
 
-This document explains the organization of the Cado-Batch project repository.
+This document explains the organization of the Host-Evidence-Runner (HER) project repository.
 
 ## Root Directory Files
 
@@ -20,7 +20,7 @@ This document explains the organization of the Cado-Batch project repository.
 ## Directory Structure
 
 ```
-Cado-Batch/
+Host-Evidence-Runner/
 ├── source/                    # Core collection scripts
 │   └── collect.ps1           # Main forensic collection script
 │

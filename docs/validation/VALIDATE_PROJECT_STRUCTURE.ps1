@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Validates that the Cado-Batch project structure is properly organized.
+    Validates that the Host-Evidence-Runner (HER) project structure is properly organized.
     
 .DESCRIPTION
     Checks that all required folders, scripts, and tools are in the correct

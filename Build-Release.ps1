@@ -26,7 +26,7 @@
     .\Build-Release.ps1 -Zip -Sign
 
 .EXAMPLE
-    .\Build-Release.ps1 -OutputDir "E:\Cado-Batch-Collector" -Sign
+    .\Build-Release.ps1 -OutputDir "E:\HER-Collector" -Sign
 #>
 [CmdletBinding()]
 param(

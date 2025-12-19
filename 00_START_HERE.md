@@ -166,7 +166,7 @@ HER/
 
 1. **Prepare USB:**
    ```
-   USB:\Cado-Batch\
+   USB:\Host-Evidence-Runner\
    ├── RUN_ME.bat
    ├── collect.ps1
    ├── bins\RawCopy.exe
@@ -432,9 +432,9 @@ Everything needed is included. You can deploy with confidence.
 
 ---
 
-**Cado-Batch Forensic Collection Tool**  
-**Version 1.0**  
+**Host-Evidence-Runner (HER) Forensic Collection Tool**  
+**Version 1.0.1**  
 **Status: Production Ready**  
-**Created: December 12, 2025**
+**Created: December 2025**
 
 **You're ready to deploy! Good luck with your investigations.** 🚀

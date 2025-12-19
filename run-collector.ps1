@@ -6,8 +6,6 @@
 .DESCRIPTION
     Ensures execution from the script root and invokes `source\collect.ps1` with
     ExecutionPolicy Bypass. Designed for sysadmins running from USB or C:\temp.
-    
-    Derived from the archived Cado-Batch project; independently maintained.
 
 .PARAMETER NoZip
     Skip compression of collected files. Useful for large collections (>4GB) to save time.

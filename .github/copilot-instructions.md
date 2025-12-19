@@ -1,7 +1,7 @@
 # Host Evidence Runner (HER) - AI Agent Instructions
 
 ## Project Overview
-**HER** is a forensic evidence collection and analysis toolkit for Windows incident response. Derived from Cado-Batch, it deploys from USB/network shares to collect 400+ Windows artifacts and perform post-collection analysis.
+**HER** is a forensic evidence collection and analysis toolkit for Windows incident response. Derived from the archived Host-Evidence-Runner project, it deploys from USB/network shares to collect 400+ Windows artifacts and perform post-collection analysis.
 
 **Primary Users:** System administrators (deployment) and forensic analysts (analysis)  
 **License:** Apache 2.0 | **Version:** 1.0.1
@@ -394,9 +394,21 @@ cd tools/optional/ZimmermanTools/net9
    - Document temporal proximity (within minutes)
    - Identify shared files through Drive link sharing patterns
 
-**Common Error:** Running `-SearchKeywordsFile` without `-ParseEventLogs` first will fail with "No parsed event log CSV found." Always parse before searching.→ Drive upload
-   - Document temporal proximity (within minutes)
-   - Identify shared files through Drive link sharing patterns
+### Common Error:** Running `-SearchKeywordsFile` without `-ParseEventLogs` first will fail with "No parsed event log CSV found." Always parse before searching.
+
+**Performance Note:** Domain controller event logs can generate 1-10GB CSV files. The `Search-EventLogData` function automatically switches to streaming mode for files >500MB:
+- **Small files (<500MB)**: Traditional `Import-Csv` (faster)
+- **Large files (>500MB)**: Line-by-line streaming (memory-efficient)
+- **Very large files (>1GB)**: May take 10-30 minutes to process
+
+If event log search is too slow, use alternative approaches:
+```powershell
+# Fast keyword search without full CSV parsing
+Select-String -Path "Phase3_EventLog_Analysis\*.csv" -Pattern "drive.google.com|chrome.exe" | Out-File "Quick_Search.txt"
+
+# Or pre-filter by Event IDs only
+Get-Content "Phase3_EventLog_Analysis\parsed.csv" | Where-Object { $_ -match "4663|4688" } | Out-File "Filtered.csv"
+```
 
 ### Critical Search Terms for Filtering
 

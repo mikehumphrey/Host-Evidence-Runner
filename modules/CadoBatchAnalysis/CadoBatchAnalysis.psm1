@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     This module contains functions for post-collection analysis of forensic data
-    collected by the Cado-Batch toolset.
+    collected by the Host-Evidence-Runner (HER) toolset.
 #>
 
 function New-YaraRuleFromInput {
@@ -60,7 +60,7 @@ function Invoke-YaraScan {
 .SYNOPSIS
     Performs a post-collection Yara scan on collected forensic artifacts.
 .DESCRIPTION
-    This function scans previously collected artifacts from a Cado-Batch investigation.
+    This function scans previously collected artifacts from a Host-Evidence-Runner investigation.
     It dynamically generates a Yara rule based on a user-provided list of sensitive
     files (filenames and hashes) and scans the collected data for any traces of them.
 .PARAMETER InvestigationPath
@@ -222,6 +222,7 @@ function Search-EventLogData {
 .DESCRIPTION
     Filters the parsed event log CSV file for specific keywords, Event IDs,
     suspicious commands, file paths, or other indicators of compromise.
+    Optimized for large files using streaming instead of loading entire file into memory.
 .PARAMETER InvestigationPath
     The full path to a specific investigation timestamp folder.
 .PARAMETER Keywords
@@ -255,83 +256,211 @@ function Search-EventLogData {
         return
     }
     
-    Write-Host "1. Loading event log data from '$($csvFile.Name)'..." -ForegroundColor Cyan
-    Write-Host "   File size: $([math]::Round($csvFile.Length / 1MB, 2)) MB" -ForegroundColor Gray
+    $fileSizeMB = [math]::Round($csvFile.Length / 1MB, 2)
+    Write-Host "1. Processing event log data from '$($csvFile.Name)'..." -ForegroundColor Cyan
+    Write-Host "   File size: $fileSizeMB MB" -ForegroundColor Gray
+    
+    # Check file size and warn if very large
+    if ($fileSizeMB -gt 1000) {
+        Write-Warning "Large CSV file detected ($fileSizeMB MB). Processing may take 10-30 minutes."
+        Write-Host "   Using streaming mode to conserve memory..." -ForegroundColor Yellow
+    } elseif ($fileSizeMB -gt 500) {
+        Write-Warning "CSV file is large ($fileSizeMB MB). Processing may take 5-15 minutes."
+    }
     
     try {
-        # Import CSV (this may take time for large files)
-        $events = Import-Csv -Path $csvFile.FullName
-        Write-Host "   Loaded $($events.Count) event records" -ForegroundColor Gray
+        # Use streaming approach for large files (>500MB) to avoid memory issues
+        $useStreaming = $fileSizeMB -gt 500
         
-        $filteredEvents = $events
-        
-        # Filter by Event IDs if specified
-        if ($EventIDs) {
-            Write-Host "2. Filtering by Event IDs: $($EventIDs -join ', ')..." -ForegroundColor Cyan
-            $filteredEvents = $filteredEvents | Where-Object { 
-                $eventId = $null
-                [int]::TryParse($_.EventId, [ref]$eventId) | Out-Null
-                $EventIDs -contains $eventId
-            }
-            Write-Host "   Found $($filteredEvents.Count) matching events" -ForegroundColor Gray
-        }
-        
-        # Filter by Keywords if specified
-        if ($Keywords) {
-            Write-Host "3. Searching for keywords: $($Keywords -join ', ')..." -ForegroundColor Cyan
-            $filteredEvents = $filteredEvents | Where-Object {
-                $record = $_ | ConvertTo-Json -Compress
-                $match = $false
-                foreach ($keyword in $Keywords) {
-                    if ($record -like "*$keyword*") {
-                        $match = $true
-                        break
-                    }
-                }
-                $match
-            }
-            Write-Host "   Found $($filteredEvents.Count) matching events" -ForegroundColor Gray
-        }
-        
-        # Apply suspicious pattern detection
-        if ($SuspiciousPatterns) {
-            Write-Host "4. Applying suspicious pattern detection..." -ForegroundColor Cyan
-            $suspiciousPatterns = @(
-                "*powershell*-enc*",           # Encoded PowerShell
-                "*powershell*-e *",            # Encoded PowerShell (short form)
-                "*downloadstring*",            # Web downloads
-                "*iex(*",                      # Invoke-Expression
-                "*invoke-expression*",
-                "*bypass*",                    # Execution policy bypass
-                "*hidden*",                    # Hidden windows
-                "*wscript*",                   # Script execution
-                "*cscript*",
-                "*regsvr32*",                  # LOLBin abuse
-                "*rundll32*",
-                "*mshta*",
-                "*certutil*-decode*",          # File download/decode
-                "*bitsadmin*",
-                "*schtasks*",                  # Scheduled tasks
-                "*at.exe*",
-                "*reg add*run*",               # Registry persistence
-                "*new-service*",               # Service creation
-                "*mimikatz*",                  # Credential dumping
-                "*procdump*",
-                "*lsass*"
-            )
+        if ($useStreaming) {
+            Write-Host "   Using streaming mode for large file..." -ForegroundColor Gray
             
-            $filteredEvents = $filteredEvents | Where-Object {
-                $record = $_ | ConvertTo-Json -Compress
-                $match = $false
-                foreach ($pattern in $suspiciousPatterns) {
-                    if ($record -like $pattern) {
-                        $match = $true
-                        break
+            # Stream-based processing (doesn't load entire file into memory)
+            $filteredEvents = [System.Collections.ArrayList]::new()
+            $lineCount = 0
+            $matchCount = 0
+            $headerLine = $null
+            $headers = @()
+            
+            # Read file line by line
+            $reader = [System.IO.StreamReader]::new($csvFile.FullName)
+            
+            try {
+                # Read header
+                $headerLine = $reader.ReadLine()
+                $headers = $headerLine -split ','
+                $eventIdIndex = [array]::IndexOf($headers, 'EventId')
+                
+                # Progress tracking
+                $startTime = Get-Date
+                $lastProgress = $startTime
+                
+                while (($line = $reader.ReadLine()) -ne $null) {
+                    $lineCount++
+                    
+                    # Show progress every 100K lines
+                    if ($lineCount % 100000 -eq 0) {
+                        $elapsed = (Get-Date) - $startTime
+                        $rate = $lineCount / $elapsed.TotalSeconds
+                        Write-Host "   Processed $([math]::Round($lineCount / 1000000, 1))M lines ($([math]::Round($rate, 0)) lines/sec)..." -ForegroundColor Gray
+                    }
+                    
+                    $matchesFilter = $true
+                    
+                    # Filter by Event IDs (fast check before parsing full line)
+                    if ($EventIDs -and $eventIdIndex -ge 0) {
+                        $fields = $line -split ','
+                        if ($fields.Count -gt $eventIdIndex) {
+                            $eventId = $null
+                            [int]::TryParse($fields[$eventIdIndex].Trim('"'), [ref]$eventId) | Out-Null
+                            if ($eventId -and $EventIDs -notcontains $eventId) {
+                                $matchesFilter = $false
+                            }
+                        }
+                    }
+                    
+                    # Filter by Keywords (case-insensitive substring search)
+                    if ($matchesFilter -and $Keywords) {
+                        $match = $false
+                        foreach ($keyword in $Keywords) {
+                            if ($line -like "*$keyword*") {
+                                $match = $true
+                                break
+                            }
+                        }
+                        if (-not $match) {
+                            $matchesFilter = $false
+                        }
+                    }
+                    
+                    # Filter by Suspicious Patterns
+                    if ($matchesFilter -and $SuspiciousPatterns) {
+                        $suspiciousPatterns = @(
+                            "*powershell*-enc*", "*powershell*-e *", "*downloadstring*",
+                            "*iex(*", "*invoke-expression*", "*bypass*", "*hidden*",
+                            "*wscript*", "*cscript*", "*regsvr32*", "*rundll32*", "*mshta*",
+                            "*certutil*-decode*", "*bitsadmin*", "*schtasks*", "*at.exe*",
+                            "*reg add*run*", "*new-service*", "*mimikatz*", "*procdump*", "*lsass*"
+                        )
+                        
+                        $match = $false
+                        foreach ($pattern in $suspiciousPatterns) {
+                            if ($line -like $pattern) {
+                                $match = $true
+                                break
+                            }
+                        }
+                        if (-not $match) {
+                            $matchesFilter = $false
+                        }
+                    }
+                    
+                    # Add matching line to results
+                    if ($matchesFilter) {
+                        $matchCount++
+                        # Store as CSV line (will be parsed at the end)
+                        [void]$filteredEvents.Add($line)
                     }
                 }
-                $match
+                
+                Write-Host "   Scanned $lineCount total event records" -ForegroundColor Gray
+                Write-Host "   Found $matchCount matching events" -ForegroundColor Green
+                
+            } finally {
+                $reader.Close()
             }
-            Write-Host "   Found $($filteredEvents.Count) suspicious events" -ForegroundColor Yellow
+            
+            # Convert matched lines back to objects for output
+            if ($matchCount -gt 0) {
+                Write-Host "   Converting matched results to objects..." -ForegroundColor Gray
+                # Recreate CSV with header and matched lines
+                $tempCsv = Join-Path ([System.IO.Path]::GetTempPath()) "filtered_events_$(Get-Date -Format 'yyyyMMddHHmmss').csv"
+                $headerLine | Set-Content $tempCsv
+                $filteredEvents | Add-Content $tempCsv
+                
+                # Import the filtered CSV (now much smaller)
+                $filteredEvents = Import-Csv -Path $tempCsv
+                Remove-Item $tempCsv -Force -ErrorAction SilentlyContinue
+            } else {
+                $filteredEvents = @()
+            }
+            
+        } else {
+            # Small file - use traditional Import-Csv (faster for files <500MB)
+            Write-Host "   Loading all event records into memory..." -ForegroundColor Gray
+            $events = Import-Csv -Path $csvFile.FullName
+            Write-Host "   Loaded $($events.Count) event records" -ForegroundColor Gray
+            
+            $filteredEvents = $events
+        
+            # Filter by Event IDs if specified (small files only - streaming mode handles this inline)
+            if ($EventIDs) {
+                Write-Host "2. Filtering by Event IDs: $($EventIDs -join ', ')..." -ForegroundColor Cyan
+                $filteredEvents = $filteredEvents | Where-Object { 
+                    $eventId = $null
+                    [int]::TryParse($_.EventId, [ref]$eventId) | Out-Null
+                    $EventIDs -contains $eventId
+                }
+                Write-Host "   Found $($filteredEvents.Count) matching events" -ForegroundColor Gray
+            }
+            
+            # Filter by Keywords if specified
+            if ($Keywords) {
+                Write-Host "3. Searching for keywords: $($Keywords -join ', ')..." -ForegroundColor Cyan
+                $filteredEvents = $filteredEvents | Where-Object {
+                    $record = $_ | ConvertTo-Json -Compress
+                    $match = $false
+                    foreach ($keyword in $Keywords) {
+                        if ($record -like "*$keyword*") {
+                            $match = $true
+                            break
+                        }
+                    }
+                    $match
+                }
+                Write-Host "   Found $($filteredEvents.Count) matching events" -ForegroundColor Gray
+            }
+            
+            # Apply suspicious pattern detection
+            if ($SuspiciousPatterns) {
+                Write-Host "4. Applying suspicious pattern detection..." -ForegroundColor Cyan
+                $suspiciousPatterns = @(
+                    "*powershell*-enc*",           # Encoded PowerShell
+                    "*powershell*-e *",            # Encoded PowerShell (short form)
+                    "*downloadstring*",            # Web downloads
+                    "*iex(*",                      # Invoke-Expression
+                    "*invoke-expression*",
+                    "*bypass*",                    # Execution policy bypass
+                    "*hidden*",                    # Hidden windows
+                    "*wscript*",                   # Script execution
+                    "*cscript*",
+                    "*regsvr32*",                  # LOLBin abuse
+                    "*rundll32*",
+                    "*mshta*",
+                    "*certutil*-decode*",          # File download/decode
+                    "*bitsadmin*",
+                    "*schtasks*",                  # Scheduled tasks
+                    "*at.exe*",
+                    "*reg add*run*",               # Registry persistence
+                    "*new-service*",               # Service creation
+                    "*mimikatz*",                  # Credential dumping
+                    "*procdump*",
+                    "*lsass*"
+                )
+                
+                $filteredEvents = $filteredEvents | Where-Object {
+                    $record = $_ | ConvertTo-Json -Compress
+                    $match = $false
+                    foreach ($pattern in $suspiciousPatterns) {
+                        if ($record -like $pattern) {
+                            $match = $true
+                            break
+                        }
+                    }
+                    $match
+                }
+                Write-Host "   Found $($filteredEvents.Count) suspicious events" -ForegroundColor Yellow
+            }
         }
         
         # Save filtered results
