@@ -28,6 +28,7 @@ logs/
 
 # Tooling caches and large optional tools
 tools/optional/ZimmermanTools/
+tools/optional/chainsaw/
 bins/md5deep/*
 bins/Sigcheck/*
 bins/Strings/*
