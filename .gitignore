@@ -40,3 +40,4 @@ bins/Strings/*
 *.gz
 *.bz2
 releases/
+tests/test_data/
