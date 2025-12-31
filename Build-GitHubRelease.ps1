@@ -57,35 +57,33 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSCommandPath
 
+
+# ============================================================================
+# STEP 0: Set/Edit Version Number (Top of Script for Visibility)
+# ============================================================================
+
+# >>>>>>>> EDIT VERSION NUMBER HERE <<<<<<<<
+# Set the version number for this release. This should match GitHub tag and semantic versioning (e.g., 1.0.1)
+$DefaultVersion = '1.0.1'
+
 # ============================================================================
 # STEP 1: Determine Version Number
 # ============================================================================
 
 if (-not $Version) {
     Write-Host "No version specified, reading from RELEASE_NOTES.md..." -ForegroundColor Cyan
-    
     $releaseNotes = Get-Content (Join-Path $root "RELEASE_NOTES.md") -Raw
-    
-    # Extract version from first header (e.g., "## Latest Release: 20251217_091555")
-    if ($releaseNotes -match "Latest Release:\s*(\d{8}_\d{6})") {
-        $buildId = $Matches[1]
-        Write-Host "Found build ID: $buildId" -ForegroundColor Gray
-        
-        # Try to extract semantic version (e.g., "Version:** 1.0.1")
-        if ($releaseNotes -match "\*\*Version:\*\*\s*(\d+\.\d+\.\d+)") {
-            $Version = $Matches[1]
-            Write-Host "Detected version: $Version" -ForegroundColor Green
-        } else {
-            Write-Error "Could not extract version from RELEASE_NOTES.md. Please specify -Version parameter."
-            exit 1
-        }
+    # Extract version from explicit Version line (e.g., "- **Version**: 1.0.1")
+    if ($releaseNotes -match "(?m)^- \*\*Version\*\*:\s*(\d+\.\d+\.\d+)") {
+        $Version = $Matches[1]
+        Write-Host "Detected version: $Version" -ForegroundColor Green
     } else {
-        Write-Error "Could not parse RELEASE_NOTES.md format. Please specify -Version parameter."
-        exit 1
+        $Version = $DefaultVersion
+        Write-Host "Could not extract version from RELEASE_NOTES.md. Using default: $Version" -ForegroundColor Yellow
     }
 }
 
-# Validate version format
+# Validate version format (GitHub standard: X.Y.Z)
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     Write-Error "Version must be in format X.Y.Z (e.g., 1.0.1)"
     exit 1
@@ -136,29 +134,40 @@ if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
     exit 1
 }
 
+
 # ============================================================================
 # STEP 4: Create ZIP for GitHub Assets
 # ============================================================================
 
 if (-not $SkipZip) {
     Write-Host "[3/6] Creating ZIP archive for GitHub..." -ForegroundColor Yellow
-    
     $zipName = "HER-v$Version.zip"
     $zipPath = Join-Path $releasesRoot $zipName
-    
+
     if (Test-Path $zipPath) {
-        Remove-Item $zipPath -Force
+        Write-Warning "ZIP asset already exists: $zipPath. It will be overwritten."
+        try {
+            Remove-Item $zipPath -Force
+        } catch {
+            Write-Error "Could not remove existing ZIP asset: $_"
+            exit 1
+        }
     }
-    
-    # Create ZIP from release directory contents
-    Compress-Archive -Path "$releaseDir\*" -DestinationPath $zipPath -Force
-    
-    $zipSize = (Get-Item $zipPath).Length / 1MB
-    Write-Host "  ✅ Created: $zipPath ($([math]::Round($zipSize, 2)) MB)" -ForegroundColor Green
+
+    # Create ZIP from release directory contents with error handling
+    try {
+        Compress-Archive -Path "$releaseDir\*" -DestinationPath $zipPath -Force
+        $zipSize = (Get-Item $zipPath).Length / 1MB
+        Write-Host "  ✅ Created: $zipPath ($([math]::Round($zipSize, 2)) MB)" -ForegroundColor Green
+    } catch {
+        Write-Error "Failed to create ZIP archive: $_"
+        exit 1
+    }
 } else {
     Write-Host "[3/6] Skipping ZIP creation (-SkipZip specified)" -ForegroundColor Gray
     $zipPath = $null
 }
+
 
 # ============================================================================
 # STEP 5: Generate GitHub Release Notes
@@ -169,6 +178,9 @@ Write-Host "[4/6] Generating GitHub release notes..." -ForegroundColor Yellow
 # Extract relevant sections from RELEASE_NOTES.md for GitHub
 $releaseNotesPath = Join-Path $root "RELEASE_NOTES.md"
 $releaseNotesContent = Get-Content $releaseNotesPath -Raw
+
+# TODO: For future improvement, extract only the latest release section from RELEASE_NOTES.md
+# (Currently, the entire file is included. See the '## Latest Release:' header for sectioning.)
 
 # Create a formatted version for GitHub
 $githubReleaseNotes = @"
@@ -207,13 +219,13 @@ For detailed instructions, see included ``docs\COLLECTION_GUIDE.md``
 ## 🔍 What Gets Collected
 
 - **400+ forensic artifacts** including:
-  - NTFS artifacts (MFT, LogFile, UsnJrnl)
-  - Registry hives (SYSTEM, SOFTWARE, SAM, SECURITY, user hives)
-  - Event logs (Security, System, Application, PowerShell, Defender)
-  - User activity (browser history, recent files, PowerShell history)
-  - Program execution (Prefetch, Amcache, SRUM)
-  - Network artifacts (RDP history, WiFi profiles, USB devices)
-  - **Server roles**: Active Directory, DNS, DHCP, IIS, Hyper-V, DFS
+    - NTFS artifacts (MFT, LogFile, UsnJrnl)
+    - Registry hives (SYSTEM, SOFTWARE, SAM, SECURITY, user hives)
+    - Event logs (Security, System, Application, PowerShell, Defender)
+    - User activity (browser history, recent files, PowerShell history)
+    - Program execution (Prefetch, Amcache, SRUM)
+    - Network artifacts (RDP history, WiFi profiles, USB devices)
+    - **Server roles**: Active Directory, DNS, DHCP, IIS, Hyper-V, DFS
 
 ---
 
