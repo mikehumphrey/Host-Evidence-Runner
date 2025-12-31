@@ -17,7 +17,10 @@ param(
     [string]$InvestigationPath,
 
     [Parameter(Mandatory=$false)]
-    [switch]$RunPlaso
+    [switch]$RunPlaso,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$PlasoOnly
 )
 
 $ErrorActionPreference = "Continue"
@@ -47,34 +50,37 @@ if (Test-Path $aiModule) {
 # Write-Host "=== Phase 2: Standard HER Analysis ===" -ForegroundColor Cyan
 # & (Join-Path $root "source\Analyze-Investigation.ps1") -InvestigationPath $InvestigationPath -ParseMFT -ParseRegistry
 
-# 3. Run Chainsaw
-Write-Host "=== Phase 3: Chainsaw Event Log Analysis ===" -ForegroundColor Cyan
-Invoke-ChainsawAnalysis -InvestigationPath $InvestigationPath
+# 3. Run Chainsaw (skipped if -PlasoOnly)
+if (-not $PlasoOnly) {
+    Write-Host "=== Phase 3: Chainsaw Event Log Analysis ===" -ForegroundColor Cyan
+    Invoke-ChainsawAnalysis -InvestigationPath $InvestigationPath
 
-# 4. Run AI Analysis
-Write-Host "=== Phase 4: AI Anomaly Detection ===" -ForegroundColor Cyan
-Invoke-AIAnalysis -InvestigationPath $InvestigationPath
+    # 4. Run AI Analysis
+    Write-Host "=== Phase 4: AI Anomaly Detection ===" -ForegroundColor Cyan
+    Invoke-AIAnalysis -InvestigationPath $InvestigationPath
+} else {
+    Write-Host "=== Skipping Chainsaw/AI (PlasoOnly) ===" -ForegroundColor Yellow
+}
 
 # 5. Run Plaso (Optional)
 if ($RunPlaso) {
     Write-Host "=== Phase 5: Plaso Timeline Generation ===" -ForegroundColor Cyan
-    if (Get-Command log2timeline -ErrorAction SilentlyContinue) {
-        $plasoOutput = Join-Path $InvestigationPath "timeline.plaso"
-        $collectedFiles = Join-Path $InvestigationPath "collected_files"
-        
-        Write-Host "Running log2timeline (this may take a while)..."
+    $collectedDir = Join-Path $InvestigationPath "collected_files"
+    if (-not (Test-Path $collectedDir)) {
+        Write-Warning "collected_files not found at $collectedDir. Skipping Plaso."
+    } elseif (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Warning "docker not found. Skipping Plaso timeline."
+    } else {
+        Write-Host "Running log2timeline via docker (this may take a while)..."
         try {
-            # Ensure paths are resolved
-            $plasoOutput = Resolve-Path $plasoOutput -ErrorAction SilentlyContinue
-            if (-not $plasoOutput) { $plasoOutput = Join-Path (Resolve-Path $InvestigationPath) "timeline.plaso" }
-            
-            log2timeline $plasoOutput $collectedFiles
-            Write-Host "Plaso timeline generated at $plasoOutput" -ForegroundColor Green
+            $resolvedInvestigation = (Resolve-Path $InvestigationPath).Path
+            $dockerStorage = "/data/timeline.plaso"
+            $dockerSource = "/data/collected_files"
+            docker run --rm -v "${resolvedInvestigation}:/data" log2timeline/plaso:latest log2timeline --storage_file $dockerStorage $dockerSource
+            Write-Host "Plaso timeline generated at $(Join-Path $InvestigationPath 'timeline.plaso')" -ForegroundColor Green
         } catch {
             Write-Error "Plaso execution failed: $_"
         }
-    } else {
-        Write-Warning "log2timeline command not found. Skipping."
     }
 }
 

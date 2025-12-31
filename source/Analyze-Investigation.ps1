@@ -192,9 +192,10 @@ if ($SearchKeywords -or $SearchKeywordsFile -or $FilterEventIDs -or $DetectSuspi
     $searchParams = @{
         InvestigationPath = $InvestigationPath
     }
+    $enableSuspicious = [bool]$DetectSuspiciousPatterns
     if ($keywordsToSearch.Count -gt 0) { $searchParams['Keywords'] = $keywordsToSearch }
     if ($FilterEventIDs) { $searchParams['EventIDs'] = $FilterEventIDs }
-    if ($DetectSuspiciousPatterns) { $searchParams['SuspiciousPatterns'] = $true }
+    if ($enableSuspicious) { $searchParams['SuspiciousPatterns'] = $true }
     
     Search-EventLogData @searchParams
 }

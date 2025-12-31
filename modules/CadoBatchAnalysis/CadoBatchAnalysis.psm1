@@ -245,9 +245,12 @@ function Search-EventLogData {
         [int[]]$EventIDs,
         
         [Parameter(Mandatory=$false)]
-        [switch]$SuspiciousPatterns
+        [object]$SuspiciousPatterns
     )
     
+    # Normalize switch-like input that may arrive as array when splatted
+    $suspiciousEnabled = [System.Management.Automation.LanguagePrimitives]::IsTrue($SuspiciousPatterns)
+
     $eventLogCsv = Join-Path $InvestigationPath "Phase3_EventLog_Analysis"
     $csvFile = Get-ChildItem -Path $eventLogCsv -Filter "*.csv" -File | Select-Object -First 1
     
@@ -334,7 +337,7 @@ function Search-EventLogData {
                     }
                     
                     # Filter by Suspicious Patterns
-                    if ($matchesFilter -and $SuspiciousPatterns) {
+                    if ($matchesFilter -and $suspiciousEnabled) {
                         $suspiciousPatterns = @(
                             "*powershell*-enc*", "*powershell*-e *", "*downloadstring*",
                             "*iex(*", "*invoke-expression*", "*bypass*", "*hidden*",
@@ -422,7 +425,7 @@ function Search-EventLogData {
             }
             
             # Apply suspicious pattern detection
-            if ($SuspiciousPatterns) {
+            if ($suspiciousEnabled) {
                 Write-Host "4. Applying suspicious pattern detection..." -ForegroundColor Cyan
                 $suspiciousPatterns = @(
                     "*powershell*-enc*",           # Encoded PowerShell
