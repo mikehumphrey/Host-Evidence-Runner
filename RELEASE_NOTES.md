@@ -1,7 +1,16 @@
 # Release Notes - HER Collector
 
 ## Latest Release: 20251217_091555
+---
 
+## Version Information
+- **Version**: 1.0.2
+- **Release Date**: December 31, 2025
+- **Release ID**: 20251231_155145
+- **PowerShell**: 5.1+ (Windows 7 SP1 and later)
+- **Windows**: Windows 7 SP1 and later, Windows Server 2008 R2 and later
+
+---
 ### Summary
 Production-ready forensic evidence collection toolkit with MAX_PATH resilience, non-interactive execution, and robust error handling.
 
@@ -223,16 +232,6 @@ HER-Collector/
 - Can skip via `-NoZip` flag for faster collection (no compression overhead)
 - Timestamp sanitization (1980-2107 range) for ZIP compatibility
 
----
-
-## Version Information
-- **Version**: 1.0.1
-- **Release Date**: December 17, 2025
-- **Release ID**: 20251217_094106
-- **PowerShell**: 5.1+ (Windows 7 SP1 and later)
-- **Windows**: Windows 7 SP1 and later, Windows Server 2008 R2 and later
-
----
 
 ## Support & Feedback
 
@@ -243,3 +242,19 @@ For issues, feedback, or feature requests, refer to project documentation or con
 - Network transfer problems → Verify SMB/445 connectivity
 - Long path errors → Expected in OneDrive environments, collection continues
 - Performance tuning → Use `-NoZip` for faster collection without compression
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

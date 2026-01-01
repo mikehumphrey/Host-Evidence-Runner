@@ -57,13 +57,16 @@ function Get-CurrentVersion {
 
 # Updates version, date, and ID
 function Set-NewVersion {
-    param([string]$newVersion)
+    param(
+        [string]$newVersion,
+        [string]$timestampParam
+    )
     Write-Host "[DEBUG] Set-NewVersion called with newVersion: $newVersion" -ForegroundColor Yellow
     Write-Host "[DEBUG] releaseNotesPath: $releaseNotesPath" -ForegroundColor Yellow
     try {
         $content = Get-Content $releaseNotesPath -Raw
         $today = Get-Date -Format 'MMMM dd, yyyy'
-        $releaseId = Get-Date -Format 'yyyyMMdd_HHmmss'
+        $releaseId = $timestampParam
         $updated = $content
         $updated = $updated -replace '(?m)^\s*- \*\*Version\*\*:\s*\d+\.\d+\.\d+', "- **Version**: $newVersion"
         $updated = $updated -replace '(?m)^\s*- \*\*Release Date\*\*:\s*.+$', "- **Release Date**: $today"
@@ -80,12 +83,13 @@ function Set-NewVersion {
 
 # Only updates date and ID, not version
 function Set-ReleaseDateAndId {
+    param([string]$timestampParam)
     Write-Host "[DEBUG] Set-ReleaseDateAndId called" -ForegroundColor Yellow
     Write-Host "[DEBUG] releaseNotesPath: $releaseNotesPath" -ForegroundColor Yellow
     try {
         $content = Get-Content $releaseNotesPath -Raw
         $today = Get-Date -Format 'MMMM dd, yyyy'
-        $releaseId = Get-Date -Format 'yyyyMMdd_HHmmss'
+        $releaseId = $timestampParam
         $updated = $content
         $updated = $updated -replace '(?m)^\s*- \*\*Release Date\*\*:\s*.+$', "- **Release Date**: $today"
         $updated = $updated -replace '(?m)^\s*- \*\*Release ID\*\*:\s*.+$', "- **Release ID**: $releaseId"
@@ -110,18 +114,18 @@ if (-not $Version) {
         if ($parts.Length -eq 3) {
             $parts[2] = [int]$parts[2] + 1
             $newVersion = "$($parts[0]).$($parts[1]).$($parts[2])"
-            Set-NewVersion $newVersion
+            Set-NewVersion $newVersion $timestamp
             Write-Host "Version updated to: $newVersion" -ForegroundColor Green
             $Version = $newVersion
         } else {
             Write-Warning "Could not parse current version. Using $currentVersion."
             $Version = $currentVersion
-            Set-ReleaseDateAndId
+            Set-ReleaseDateAndId $timestamp
         }
     } else {
         $Version = $currentVersion
         Write-Host "Using current version: $Version" -ForegroundColor Yellow
-        Set-ReleaseDateAndId
+        Set-ReleaseDateAndId $timestamp
     }
 }
 

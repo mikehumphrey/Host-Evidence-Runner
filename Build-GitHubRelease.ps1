@@ -64,7 +64,7 @@ $root = Split-Path -Parent $PSCommandPath
 
 # >>>>>>>> EDIT VERSION NUMBER HERE <<<<<<<<
 # Set the version number for this release. This should match GitHub tag and semantic versioning (e.g., 1.0.1)
-$DefaultVersion = '1.0.1'
+$DefaultVersion = '1.0.0'
 
 # ============================================================================
 # STEP 1: Determine Version Number
