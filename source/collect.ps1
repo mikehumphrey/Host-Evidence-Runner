@@ -368,24 +368,87 @@ try {
     Write-Verbose "Collecting MFT and LogFile from C: drive"
     Write-Log "Collecting MFT and LogFile from C: drive"
     
+    # Helper to find and move RawCopy output if it missed the target
+    function Retrieve-RawCopyOutput {
+        param($TargetName, $AlternativeNames, $DestinationDir)
+        
+        # 1. Check if target exists
+        if (Test-Path (Join-Path $DestinationDir $TargetName)) { return $true }
+        
+        # 2. Check for alternatives in Destination
+        foreach ($name in $AlternativeNames) {
+            $path = Join-Path $DestinationDir $name
+            if (Test-Path $path) {
+                Move-Item $path (Join-Path $DestinationDir $TargetName) -Force
+                return $true
+            }
+        }
+        
+        # 3. Check in current directory (fallback)
+        if (Test-Path $TargetName) {
+            Move-Item $TargetName (Join-Path $DestinationDir $TargetName) -Force
+            return $true
+        }
+        foreach ($name in $AlternativeNames) {
+            if (Test-Path $name) {
+                Move-Item $name (Join-Path $DestinationDir $TargetName) -Force
+                return $true
+            }
+        }
+        
+        return $false
+    }
+    
     # RawCopy outputs to current directory by default - simpler than specifying OutputPath with spaces
     $rawCopyExe = Get-BinFile 'RawCopy.exe'
     $currentDir = Get-Location
     
     # Collect MFT
-    Start-Process -FilePath $rawCopyExe -ArgumentList '/FileNamePath:C:0' -Wait -NoNewWindow -WorkingDirectory $currentDir
-    if (Test-Path (Join-Path $currentDir '$MFT')) {
-        Move-Item -Path (Join-Path $currentDir '$MFT') -Destination "$outputDir\MFT_C.bin" -Force
+    $mftCollected = $false
+    $mftArgs = @(
+        "/FileNamePath:C:0",
+        "/OutputPath:$outputDir",
+        "/OutputName:MFT_C.bin"
+    )
+    Write-Verbose "RawCopy Args (MFT): $($mftArgs -join ' ')"
+    Start-Process -FilePath $rawCopyExe -ArgumentList $mftArgs -Wait -NoNewWindow -WorkingDirectory $currentDir
+    
+    if (Retrieve-RawCopyOutput -TargetName "MFT_C.bin" -AlternativeNames @('$MFT') -DestinationDir $outputDir) {
+        $mftCollected = $true
+    } else {
+        Write-Log "Error: RawCopy failed to extract `$MFT" -Level Error
     }
     
     # Collect LogFile
-    Start-Process -FilePath $rawCopyExe -ArgumentList "/FileNamePath:c:\$LogFile" -Wait -NoNewWindow -WorkingDirectory $currentDir
-    if (Test-Path (Join-Path $currentDir '$LogFile')) {
-        Move-Item -Path (Join-Path $currentDir '$LogFile') -Destination "$outputDir\LogFile_C.bin" -Force
+    $logFileCollected = $false
+    # Use C:2 (MFT index 2) to avoid path parsing issues with $LogFile
+    $logFileArgs = @(
+        "/FileNamePath:C:2",
+        "/OutputPath:$outputDir",
+        "/OutputName:LogFile_C.bin"
+    )
+    Write-Verbose "RawCopy Args (LogFile): $($logFileArgs -join ' ')"
+    Start-Process -FilePath $rawCopyExe -ArgumentList $logFileArgs -Wait -NoNewWindow -WorkingDirectory $currentDir
+    
+    if (Retrieve-RawCopyOutput -TargetName "LogFile_C.bin" -AlternativeNames @('$LogFile') -DestinationDir $outputDir) {
+        $logFileCollected = $true
+    } else {
+        Write-Log "Error: RawCopy failed to extract `$LogFile" -Level Error
     }
-    Write-Host "Successfully collected MFT and LogFile."
-    Write-Log "Successfully collected MFT and LogFile."
-    Add-CollectionResult -ItemName "MFT and LogFile" -Status Success
+
+    if ($mftCollected -and $logFileCollected) {
+        Write-Host "Successfully collected MFT and LogFile."
+        Write-Log "Successfully collected MFT and LogFile."
+        Add-CollectionResult -ItemName "MFT and LogFile" -Status Success
+    } elseif ($mftCollected -or $logFileCollected) {
+        Write-Host "Partially collected MFT/LogFile." -ForegroundColor Yellow
+        Write-Log "Partially collected MFT/LogFile (MFT: $mftCollected, LogFile: $logFileCollected)" -Level Warning
+        Add-CollectionResult -ItemName "MFT and LogFile" -Status Warning -Message "Partial collection"
+    } else {
+        Write-Host "Failed to collect MFT and LogFile." -ForegroundColor Red
+        Write-Log "Failed to collect MFT and LogFile" -Level Error
+        Add-CollectionResult -ItemName "MFT and LogFile" -Status Error -Message "RawCopy extraction failed"
+    }
 
     Write-Verbose "Collecting EVTX files..."
     Write-Log "Collecting EVTX files..."
@@ -568,12 +631,41 @@ try {
     $rawCopyExe = Get-BinFile 'RawCopy.exe'
     $currentDir = Get-Location
     
-    Start-Process -FilePath $rawCopyExe -ArgumentList "/FileNamePath:C:\$Extend\$UsnJrnl" -Wait -NoNewWindow -WorkingDirectory $currentDir
-    if (Test-Path (Join-Path $currentDir '$UsnJrnl')) {
-        Move-Item -Path (Join-Path $currentDir '$UsnJrnl') -Destination "$outputDir\UsnJrnl_C.bin" -Force
+    # Use quoted path to handle special characters safely
+    $usnArgs = @(
+        "/FileNamePath:`"C:\`$Extend\`$UsnJrnl`"",
+        "/OutputPath:$outputDir",
+        "/OutputName:UsnJrnl_C.bin"
+    )
+    Write-Verbose "RawCopy Args (USN): $($usnArgs -join ' ')"
+    
+    Start-Process -FilePath $rawCopyExe -ArgumentList $usnArgs -Wait -NoNewWindow -WorkingDirectory $currentDir
+    
+    # Check for UsnJrnl_C.bin OR any file containing UsnJrnl (handling ADS output)
+    $usnFound = $false
+    if (Test-Path "$outputDir\UsnJrnl_C.bin") {
+        $usnFound = $true
+    } else {
+        # Check for ADS output or alternative names
+        $usnFiles = Get-ChildItem -Path $outputDir -Filter "*UsnJrnl*" -ErrorAction SilentlyContinue
+        if ($usnFiles) {
+            $usnFound = $true
+            Write-Verbose "Found USN Journal artifacts: $($usnFiles.Name -join ', ')"
+        } elseif (Get-ChildItem -Path $currentDir -Filter "*UsnJrnl*" -ErrorAction SilentlyContinue) {
+             # Check current dir fallback
+             Get-ChildItem -Path $currentDir -Filter "*UsnJrnl*" | Move-Item -Destination $outputDir -Force
+             $usnFound = $true
+        }
+    }
+
+    if ($usnFound) {
         Write-Host "Successfully collected USN Journal."
+        Write-Log "Successfully collected USN Journal"
+        Add-CollectionResult -ItemName "USN Journal" -Status Success
     } else {
         Write-Warning "Could not find the collected USN Journal. RawCopy may have failed."
+        Write-Log "Error: RawCopy failed to extract `$UsnJrnl" -Level Error
+        Add-CollectionResult -ItemName "USN Journal" -Status Error -Message "RawCopy extraction failed"
     }
 
     # ============================================================================
@@ -599,14 +691,24 @@ try {
                     New-Item -ItemType Directory -Path $ntdsOutputPath -Force | Out-Null
                 }
                 
-                # Copy to temp, then move (avoids path issues)
+                # Copy directly to output path
                 $currentDir = Get-Location
-                Start-Process -FilePath $rawCopyPath -ArgumentList "/FileNamePath:$ntdsPath" -Wait -NoNewWindow -WorkingDirectory $currentDir
-                if (Test-Path (Join-Path $currentDir 'ntds.dit')) {
-                    Move-Item -Path (Join-Path $currentDir 'ntds.dit') -Destination $ntdsOutputPath -Force
+                $ntdsArgs = @(
+                    "/FileNamePath:$ntdsPath",
+                    "/OutputPath:$ntdsOutputPath",
+                    "/OutputName:ntds.dit"
+                )
+                Write-Verbose "RawCopy Args (NTDS): $($ntdsArgs -join ' ')"
+                
+                Start-Process -FilePath $rawCopyPath -ArgumentList $ntdsArgs -Wait -NoNewWindow -WorkingDirectory $currentDir
+                
+                if (Test-Path (Join-Path $ntdsOutputPath 'ntds.dit')) {
+                    Write-Host "Successfully collected Active Directory database (NTDS.dit)." -ForegroundColor Green
+                    Add-CollectionResult -ItemName "Active Directory Database (NTDS.dit)" -Status Success
+                } else {
+                    Write-Log "Error: RawCopy failed to extract NTDS.dit" -Level Error
+                    Add-CollectionResult -ItemName "Active Directory Database (NTDS.dit)" -Status Error -Message "RawCopy extraction failed"
                 }
-                Write-Host "Successfully collected Active Directory database (NTDS.dit)." -ForegroundColor Green
-                Add-CollectionResult -ItemName "Active Directory Database (NTDS.dit)" -Status Success
             }
             
             # Collect AD log files
@@ -1193,11 +1295,21 @@ try {
                     if (Test-Path $rawCopyPath) {
                         Write-Log "  - Attempting to copy SRUM database with RawCopy.exe"
                         $currentDir = Get-Location
-                        Start-Process -FilePath $rawCopyPath -ArgumentList "/FileNamePath:$srumDbPath" -Wait -NoNewWindow -WorkingDirectory $currentDir
-                        if (Test-Path (Join-Path $currentDir 'SRUDB.dat')) {
-                            Move-Item -Path (Join-Path $currentDir 'SRUDB.dat') -Destination (SafeJoinPath $OutputPath 'SRUM_Database.dat') -Force
+                        
+                        $srumArgs = @(
+                            "/FileNamePath:$srumDbPath",
+                            "/OutputPath:$OutputPath",
+                            "/OutputName:SRUM_Database.dat"
+                        )
+                        Write-Verbose "RawCopy Args (SRUM): $($srumArgs -join ' ')"
+                        
+                        Start-Process -FilePath $rawCopyPath -ArgumentList $srumArgs -Wait -NoNewWindow -WorkingDirectory $currentDir
+                        
+                        if (Retrieve-RawCopyOutput -TargetName "SRUM_Database.dat" -AlternativeNames @('SRUDB.dat') -DestinationDir $OutputPath) {
+                            Write-Log "  - SRUM database copied successfully"
+                        } else {
+                            Write-Log "  - RawCopy failed to extract SRUM database" -Level Warning
                         }
-                        Write-Log "  - SRUM database copied successfully"
                     } else {
                         # Try direct copy (may fail if locked)
                         $outputSRUM = SafeJoinPath $OutputPath "SRUM_Database.dat"
@@ -1232,11 +1344,21 @@ try {
                     if (Test-Path $rawCopyPath) {
                         Write-Log "  - Attempting to copy Amcache with RawCopy.exe"
                         $currentDir = Get-Location
-                        Start-Process -FilePath $rawCopyPath -ArgumentList "/FileNamePath:$amcachePath" -Wait -NoNewWindow -WorkingDirectory $currentDir
-                        if (Test-Path (Join-Path $currentDir 'Amcache.hve')) {
-                            Move-Item -Path (Join-Path $currentDir 'Amcache.hve') -Destination (SafeJoinPath $OutputPath 'Amcache.hve') -Force
+                        
+                        $amcacheArgs = @(
+                            "/FileNamePath:$amcachePath",
+                            "/OutputPath:$OutputPath",
+                            "/OutputName:Amcache.hve"
+                        )
+                        Write-Verbose "RawCopy Args (Amcache): $($amcacheArgs -join ' ')"
+                        
+                        Start-Process -FilePath $rawCopyPath -ArgumentList $amcacheArgs -Wait -NoNewWindow -WorkingDirectory $currentDir
+                        
+                        if (Retrieve-RawCopyOutput -TargetName "Amcache.hve" -AlternativeNames @('Amcache.hve') -DestinationDir $OutputPath) {
+                            Write-Log "  - Amcache copied successfully"
+                        } else {
+                            Write-Log "  - RawCopy failed to extract Amcache" -Level Warning
                         }
-                        Write-Log "  - Amcache copied successfully"
                     } else {
                         # Try direct copy
                         $outputAmcache = SafeJoinPath $OutputPath "Amcache.hve"
