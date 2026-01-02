@@ -8,7 +8,13 @@ param(
     [switch]$NoZip,
     
     [Parameter(Mandatory=$false)]
-    [string]$AnalystWorkstation
+    [string]$AnalystWorkstation,
+
+    [Parameter(Mandatory=$false)]
+    [string]$OutputDirectory,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$DeleteAfterTransfer
 )
 
 $ErrorActionPreference = 'Continue'
@@ -32,13 +38,24 @@ if ($RootPath) {
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $computerName = $env:COMPUTERNAME
 
-# Create investigation folder structure: investigations/[HOSTNAME]/[TIMESTAMP]/
-$investigationsRoot = Join-Path $scriptRoot "investigations"
-$hostFolder = Join-Path $investigationsRoot $computerName
-$outputRoot = Join-Path $hostFolder $timestamp
-
-if (-not (Test-Path $outputRoot)) {
-    New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+# Create investigation folder structure
+if ($OutputDirectory) {
+    # Use custom output directory if provided
+    $outputRoot = $OutputDirectory
+    # Ensure parent exists
+    if (-not (Test-Path $outputRoot)) {
+        New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+    }
+    $investigationsRoot = Split-Path -Parent $outputRoot
+} else {
+    # Default: investigations/[HOSTNAME]/[TIMESTAMP]/
+    $investigationsRoot = Join-Path $scriptRoot "investigations"
+    $hostFolder = Join-Path $investigationsRoot $computerName
+    $outputRoot = Join-Path $hostFolder $timestamp
+    
+    if (-not (Test-Path $outputRoot)) {
+        New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+    }
 }
 
 $logFile = Join-Path $outputRoot "forensic_collection_${computerName}_${timestamp}.txt"
@@ -940,8 +957,23 @@ try {
         Write-Verbose "  - Collecting OneDrive metadata..."
         $oneDrivePath = Join-Path $user.FullName "AppData\Local\Microsoft\OneDrive\logs"
         if (Test-Path $oneDrivePath) {
-            robocopy $oneDrivePath "$userOutputDir\OneDrive_Logs" /E /R:1 /W:1 | Out-Null
-            Write-Verbose "    - Collected OneDrive logs"
+            # Check size of logs to prevent massive collections
+            $logSize = 0
+            try {
+                $logSize = (Get-ChildItem $oneDrivePath -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+            } catch {
+                Write-Verbose "    - Could not calculate OneDrive log size: $_"
+            }
+
+            $limitSize = 5GB
+            if ($logSize -gt $limitSize) {
+                Write-Log "OneDrive logs are large ($([math]::Round($logSize/1GB, 2)) GB). Limiting collection to last 90 days." -Level Warning
+                robocopy $oneDrivePath "$userOutputDir\OneDrive_Logs" /E /R:1 /W:1 /MAXAGE:90 | Out-Null
+                Write-Verbose "    - Collected OneDrive logs (last 90 days)"
+            } else {
+                robocopy $oneDrivePath "$userOutputDir\OneDrive_Logs" /E /R:1 /W:1 | Out-Null
+                Write-Verbose "    - Collected OneDrive logs (full history)"
+            }
         }
 
         # Windows Search index for user
@@ -1652,32 +1684,50 @@ if (-not $NoZip) {
 
 if ($AnalystWorkstation) {
     Write-Log "============================================================================"
-    Write-Log "Transferring collected files to analyst workstation"
+    Write-Log "Transferring collected files to destination"
     Write-Log "============================================================================"
     
     try {
-        # Normalize analyst workstation (remove backslashes if provided, trim whitespace)
-        $targetHost = $AnalystWorkstation.Trim() -replace '\\\\', '' -replace '\\', ''
-        
-        # Validate target host is not empty after normalization
-        if (-not $targetHost) {
-            throw "AnalystWorkstation parameter is empty or invalid"
-        }
-        
-        # Handle localhost specially - use local path without UNC
-        if ($targetHost -eq 'localhost' -or $targetHost -eq '127.0.0.1' -or $targetHost -eq $env:COMPUTERNAME) {
-            $destinationPath = "C:\Temp\Investigations\$computerName\$timestamp"
-            $isLocalhost = $true
-            Write-Log "Using localhost transfer mode (local filesystem copy)"
-        } else {
-            $destinationPath = "\\$targetHost\c`$\Temp\Investigations\$computerName\$timestamp"
+        $destinationPath = $null
+        $isLocalhost = $false
+        $targetHost = $null
+
+        # Check if input is a UNC path (starts with \\)
+        if ($AnalystWorkstation.StartsWith('\\')) {
+            # It's a network share path (e.g., \\Server\Share\Folder)
+            $destinationRoot = $AnalystWorkstation.TrimEnd('\')
+            $destinationPath = SafeJoinPath $destinationRoot $computerName $timestamp
             $isLocalhost = $false
-            Write-Log "Using remote transfer mode (UNC path to $targetHost)"
+            # Extract hostname for connectivity check (optional, but good for logging)
+            if ($AnalystWorkstation -match '^\\\\([^\\]+)') {
+                $targetHost = $Matches[1]
+            }
+            Write-Log "Using network share transfer mode"
+        } else {
+            # It's a hostname/IP - use default C$ share logic
+            # Normalize analyst workstation (remove backslashes if provided, trim whitespace)
+            $targetHost = $AnalystWorkstation.Trim() -replace '\\\\', '' -replace '\\', ''
+            
+            # Validate target host is not empty after normalization
+            if (-not $targetHost) {
+                throw "AnalystWorkstation parameter is empty or invalid"
+            }
+            
+            # Handle localhost specially - use local path without UNC
+            if ($targetHost -eq 'localhost' -or $targetHost -eq '127.0.0.1' -or $targetHost -eq $env:COMPUTERNAME) {
+                $destinationPath = "C:\Temp\Investigations\$computerName\$timestamp"
+                $isLocalhost = $true
+                Write-Log "Using localhost transfer mode (local filesystem copy)"
+            } else {
+                $destinationPath = "\\$targetHost\c`$\Temp\Investigations\$computerName\$timestamp"
+                $isLocalhost = $false
+                Write-Log "Using remote transfer mode (UNC path to $targetHost)"
+            }
         }
         
         Write-Log "Target destination: $destinationPath"
         Write-Host ""
-        Write-Host "Transferring files to analyst workstation..." -ForegroundColor Cyan
+        Write-Host "Transferring files to destination..." -ForegroundColor Cyan
         Write-Host "  Source: $outputRoot" -ForegroundColor White
         Write-Host "  Destination: $destinationPath" -ForegroundColor White
         
@@ -1694,8 +1744,8 @@ if ($AnalystWorkstation) {
         }
         Write-Host ""
         
-        # Test network connectivity if not localhost
-        if (-not $isLocalhost) {
+        # Test network connectivity if not localhost and we have a hostname
+        if (-not $isLocalhost -and $targetHost) {
             Write-Log "Testing connectivity to $targetHost..."
             $pingResult = Test-Connection -ComputerName $targetHost -Count 1 -Quiet -ErrorAction SilentlyContinue
             
@@ -1705,7 +1755,7 @@ if ($AnalystWorkstation) {
             } else {
                 Write-Log "Successfully connected to $targetHost"
             }
-        } else {
+        } elseif ($isLocalhost) {
             Write-Log "Localhost detected - skipping network connectivity test"
         }
         
@@ -1719,16 +1769,17 @@ if ($AnalystWorkstation) {
             }
         }
         
-        $destParent = Split-Path $destinationPath -Parent
-        if (-not (Test-Path $destParent)) {
-            Write-Log "Creating destination directory structure: $destParent"
-            New-Item -ItemType Directory -Path $destParent -Force -ErrorAction Stop | Out-Null
-        } else {
-            Write-Log "Destination parent directory already exists: $destParent"
+        # Ensure destination parent exists (Robocopy can create the leaf, but good to be safe)
+        # For UNC paths, we might not have permissions to create the parent share, but we can try creating the subfolder
+        if (-not (Test-Path $destinationPath)) {
+             # We let Robocopy handle creation, but we can try to create it to fail fast if permissions are wrong
+             # However, for deep paths, Test-Path might fail on the leaf if parent doesn't exist.
+             # We'll rely on Robocopy's robust creation.
+             Write-Log "Destination path will be created by Robocopy."
         }
         
-        # Build robocopy log path
-        $robocopyLog = Join-Path $destinationPath "ROBOCopyLog.txt"
+        # Build robocopy log path - save locally first to avoid issues if remote path is invalid
+        $robocopyLogLocal = Join-Path $outputRoot "ROBOCopyLog.txt"
         
         # Execute robocopy - copy zip only or full directory
         Write-Log "Starting robocopy transfer..."
@@ -1738,10 +1789,10 @@ if ($AnalystWorkstation) {
         
         if ($transferZipOnly) {
             # Copy only the zip file, log file, and summary
-            $robocopyCmd = "robocopy `"$outputRoot`" `"$destinationPath`" collected_files.zip `"forensic_collection_${computerName}_${timestamp}.txt`" COLLECTION_SUMMARY.txt /DCOPY:T /COPY:DAT /R:3 /W:5 /LOG+:`"$robocopyLog`" /TEE /NP"
+            $robocopyCmd = "robocopy `"$outputRoot`" `"$destinationPath`" collected_files.zip `"forensic_collection_${computerName}_${timestamp}.txt`" COLLECTION_SUMMARY.txt /DCOPY:T /COPY:DAT /R:3 /W:5 /LOG+:`"$robocopyLogLocal`" /TEE /NP"
         } else {
             # Copy entire directory
-            $robocopyCmd = "robocopy `"$outputRoot`" `"$destinationPath`" /E /DCOPY:T /COPY:DAT /R:3 /W:5 /LOG+:`"$robocopyLog`" /TEE /NP"
+            $robocopyCmd = "robocopy `"$outputRoot`" `"$destinationPath`" /E /DCOPY:T /COPY:DAT /R:3 /W:5 /LOG+:`"$robocopyLogLocal`" /TEE /NP"
         }
         
         Write-Log "Robocopy command: $robocopyCmd"
@@ -1755,14 +1806,20 @@ if ($AnalystWorkstation) {
         if ($robocopyExitCode -lt 8) {
             Write-Host ""
             if ($transferZipOnly) {
-                Write-Host "Successfully transferred ZIP archive to analyst workstation!" -ForegroundColor Green
+                Write-Host "Successfully transferred ZIP archive to destination!" -ForegroundColor Green
                 Write-Log "Robocopy completed successfully - ZIP file transferred (exit code: $robocopyExitCode)"
             } else {
-                Write-Host "Successfully transferred full collection to analyst workstation!" -ForegroundColor Green
+                Write-Host "Successfully transferred full collection to destination!" -ForegroundColor Green
                 Write-Log "Robocopy completed successfully - full directory transferred (exit code: $robocopyExitCode)"
             }
             Write-Log "Files transferred to: $destinationPath"
-            Write-Log "Transfer log: $robocopyLog"
+            
+            # Copy the local robocopy log to the destination as well (best effort)
+            try {
+                Copy-Item -Path $robocopyLogLocal -Destination $destinationPath -Force -ErrorAction SilentlyContinue
+            } catch {
+                Write-Log "Warning: Could not copy robocopy log to destination" -Level Warning
+            }
             
             # Store destination for summary report
             if ($transferZipOnly) {
@@ -1770,12 +1827,34 @@ if ($AnalystWorkstation) {
             } else {
                 $script:analystDestination = "$destinationPath (full collection)"
             }
+
+            # --- CLEANUP LOGIC ---
+            if ($DeleteAfterTransfer) {
+                Write-Log "Cleanup requested (-DeleteAfterTransfer). Deleting local files..."
+                Write-Host "Cleanup requested. Deleting local files..." -ForegroundColor Yellow
+                
+                # We are currently running inside the output folder (log file is open).
+                # We can't delete the log file we are writing to.
+                # Strategy: Delete everything EXCEPT the log file.
+                
+                try {
+                    $itemsToDelete = Get-ChildItem -Path $outputRoot -Recurse | Where-Object { $_.FullName -ne $logFile }
+                    foreach ($item in $itemsToDelete) {
+                        Remove-Item -Path $item.FullName -Force -Recurse -ErrorAction SilentlyContinue
+                    }
+                    Write-Log "Local files deleted (Log file remains)."
+                    Write-Host "  ✓ Local files deleted." -ForegroundColor Green
+                } catch {
+                    Write-Log "Warning: Cleanup encountered errors: $_" -Level Warning
+                }
+            }
+
         } else {
             Write-Host ""
             Write-Host "Warning: Robocopy completed with errors (exit code: $robocopyExitCode)" -ForegroundColor Yellow
             Write-Host "Some files may not have been transferred. Check the log file." -ForegroundColor Yellow
             Write-Log "Warning: Robocopy exit code $robocopyExitCode indicates errors" -Level Warning
-            Write-Log "Transfer log: $robocopyLog"
+            Write-Log "Transfer log: $robocopyLogLocal"
             
             $script:analystDestination = "$destinationPath (transfer had errors - see log)"
         }
@@ -1783,7 +1862,7 @@ if ($AnalystWorkstation) {
     } catch {
         Write-Log "Error during file transfer: $_" -Level Error
         Write-Host ""
-        Write-Host "Error: Failed to transfer files to analyst workstation" -ForegroundColor Red
+        Write-Host "Error: Failed to transfer files to destination" -ForegroundColor Red
         Write-Host "  Error: $_" -ForegroundColor Red
         Write-Host "  Files remain in local collection folder" -ForegroundColor Yellow
         Write-Host ""
