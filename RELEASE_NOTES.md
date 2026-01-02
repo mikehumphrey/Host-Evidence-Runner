@@ -1,12 +1,10 @@
 # Release Notes - HER Collector
-
-## Latest Release: 20251217_091555
 ---
 
 ## Version Information
-- **Version**: 1.0.2
-- **Release Date**: December 31, 2025
-- **Release ID**: 20251231_155145
+- **Version**: 1.0.4
+- **Release Date**: January 02, 2026
+- **Release ID**: 20260102_101325
 - **PowerShell**: 5.1+ (Windows 7 SP1 and later)
 - **Windows**: Windows 7 SP1 and later, Windows Server 2008 R2 and later
 
@@ -242,6 +240,14 @@ For issues, feedback, or feature requests, refer to project documentation or con
 - Network transfer problems → Verify SMB/445 connectivity
 - Long path errors → Expected in OneDrive environments, collection continues
 - Performance tuning → Use `-NoZip` for faster collection without compression
+
+
+
+
+
+
+
+
 
 
 
