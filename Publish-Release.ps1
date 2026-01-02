@@ -24,51 +24,107 @@ param(
     # }
 
     [Parameter(Mandatory=$false)]
-    [hashtable]$LocalTarget
+    [hashtable]$LocalTarget,
     # Expected format: @{ TempPath='C:\Temp'; ExtractPath='C:\Temp\HER-$Version' }
+
+    [Parameter(Mandatory=$false)]
+    [string]$SourcePath
+    # Optional: Path to a specific build folder (e.g. releases/v1.0.0) or zip file.
+    # If omitted, defaults to the latest timestamped release from RELEASE_NOTES.md.
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSCommandPath
 $releasesRoot = Join-Path $root 'releases'
 
-# Get latest release info from RELEASE_NOTES.md
-$releaseNotesPath = Join-Path $root 'RELEASE_NOTES.md'
-if (-not (Test-Path $releaseNotesPath)) {
-    Write-Error "RELEASE_NOTES.md not found!"
-    exit 1
-}
-$releaseNotes = Get-Content $releaseNotesPath -Raw
+# --- Determine Release Source ---
+if ($SourcePath) {
+    # Mode A: Explicit Source (e.g. GitHub Release)
+    if (-not (Test-Path $SourcePath)) { throw "SourcePath not found: $SourcePath" }
+    
+    if ((Get-Item $SourcePath).PSIsContainer) {
+        # It's a folder (e.g. releases/v1.0.0)
+        $buildFolder = $SourcePath
+        $dirName = Split-Path $buildFolder -Leaf
+        
+        # Try to deduce metadata
+        if ($dirName -match '^v(\d+\.\d+\.\d+)$') {
+            $Version = $Matches[1]
+            $ReleaseID = "v$Version"
+            $zipName = "HER-v$Version.zip"
+        } elseif ($dirName -match '^\d{8}_\d{6}$') {
+            $ReleaseID = $dirName
+            $Version = "Unknown" 
+            $zipName = "HER-$ReleaseID.zip"
+        } else {
+            $ReleaseID = $dirName
+            $Version = "Custom"
+            $zipName = "HER-$dirName.zip"
+        }
+        
+        $zipPath = Join-Path $releasesRoot $zipName
+        
+        # Create Zip if missing
+        if (-not (Test-Path $zipPath)) {
+            Write-Host "Zipping source: $buildFolder -> $zipPath" -ForegroundColor Yellow
+            Compress-Archive -Path "$buildFolder\*" -DestinationPath $zipPath -Force
+            Write-Host "  ✓ Created zip: $zipPath" -ForegroundColor Green
+        } else {
+            Write-Host "Using existing zip: $zipPath" -ForegroundColor Green
+        }
+    } else {
+        # It's a file (Zip)
+        $zipPath = $SourcePath
+        $zipName = Split-Path $zipPath -Leaf
+        # Simple deduction
+        $ReleaseID = "External"
+        $Version = "External"
+        if ($zipName -match 'v(\d+\.\d+\.\d+)') { $Version = $Matches[1] }
+    }
+    
+    Write-Host "Using explicit source: $SourcePath" -ForegroundColor Cyan
 
-# Extract Release ID and Version
-if ($releaseNotes -match '(?m)^- \*\*Release ID\*\*:\s*(\d{8}_\d{6})') {
-    $ReleaseID = $Matches[1]
 } else {
-    Write-Error "Could not find Release ID in RELEASE_NOTES.md"
-    exit 1
-}
-if ($releaseNotes -match '(?m)^- \*\*Version\*\*:\s*(\d+\.\d+\.\d+)') {
-    $Version = $Matches[1]
-} else {
-    $Version = 'Unknown'
-}
+    # Mode B: Auto-detect latest timestamped release (Default/Legacy)
+    
+    # Get latest release info from RELEASE_NOTES.md
+    $releaseNotesPath = Join-Path $root 'RELEASE_NOTES.md'
+    if (-not (Test-Path $releaseNotesPath)) {
+        Write-Error "RELEASE_NOTES.md not found!"
+        exit 1
+    }
+    $releaseNotes = Get-Content $releaseNotesPath -Raw
 
-# Locate the latest build folder
-$buildFolder = Join-Path $releasesRoot $ReleaseID
-if (-not (Test-Path $buildFolder)) {
-    Write-Error "Build folder not found: $buildFolder"
-    exit 1
-}
+    # Extract Release ID and Version
+    if ($releaseNotes -match '(?m)^- \*\*Release ID\*\*:\s*(\d{8}_\d{6})') {
+        $ReleaseID = $Matches[1]
+    } else {
+        Write-Error "Could not find Release ID in RELEASE_NOTES.md"
+        exit 1
+    }
+    if ($releaseNotes -match '(?m)^- \*\*Version\*\*:\s*(\d+\.\d+\.\d+)') {
+        $Version = $Matches[1]
+    } else {
+        $Version = 'Unknown'
+    }
 
-# Zip the build folder if not already zipped
-$zipName = "HER-$ReleaseID.zip"
-$zipPath = Join-Path $releasesRoot $zipName
-if (-not (Test-Path $zipPath)) {
-    Write-Host "Zipping latest build folder: $buildFolder -> $zipPath" -ForegroundColor Yellow
-    Compress-Archive -Path "$buildFolder\*" -DestinationPath $zipPath -Force
-    Write-Host "  ✓ Created zip: $zipPath" -ForegroundColor Green
-} else {
-    Write-Host "Using existing zip: $zipPath" -ForegroundColor Green
+    # Locate the latest build folder
+    $buildFolder = Join-Path $releasesRoot $ReleaseID
+    if (-not (Test-Path $buildFolder)) {
+        Write-Error "Build folder not found: $buildFolder"
+        exit 1
+    }
+
+    # Zip the build folder if not already zipped
+    $zipName = "HER-$ReleaseID.zip"
+    $zipPath = Join-Path $releasesRoot $zipName
+    if (-not (Test-Path $zipPath)) {
+        Write-Host "Zipping latest build folder: $buildFolder -> $zipPath" -ForegroundColor Yellow
+        Compress-Archive -Path "$buildFolder\*" -DestinationPath $zipPath -Force
+        Write-Host "  ✓ Created zip: $zipPath" -ForegroundColor Green
+    } else {
+        Write-Host "Using existing zip: $zipPath" -ForegroundColor Green
+    }
 }
 
 Write-Host "Publishing HER release: $zipName (Version: $Version, Release ID: $ReleaseID)" -ForegroundColor Cyan

@@ -43,3 +43,4 @@ releases/
 tests/test_data/
 
 Publish-Release-MOA.ps1
+Publish-Release-Local.ps1
