@@ -36,6 +36,10 @@ Test-Path C:\Temp\HER-Collector\tools\bins\RawCopy.exe
 # Step 4: Run the collection (non-interactive, works with scheduled tasks)
 C:\Temp\HER-Collector\run-collector.ps1 -AnalystWorkstation "localhost"
 
+# Option: Silent Collection (Stealth Mode)
+# Runs invisibly, saves to %Temp%, exfiltrates to share, and self-cleans
+# C:\Temp\HER-Collector\run-silent.ps1 -AnalystWorkstation "\\FileServer\EvidenceShare"
+
 # For debugging with verbose output (optional - not recommended for automated runs):
 # C:\Temp\HER-Collector\run-collector.ps1 -AnalystWorkstation "localhost" -Verbose
 

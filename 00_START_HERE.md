@@ -47,6 +47,7 @@ HER/
 ├── README.md                     ← Main project documentation
 │
 ├── run-collector.ps1             ← Main collection launcher
+├── run-silent.ps1                ← Silent/Stealth launcher (hidden window, %Temp% execution)
 ├── RUN_COLLECT.bat               ← Batch launcher for restricted environments
 │
 ├── source/                       ← Core scripts

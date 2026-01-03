@@ -12,7 +12,7 @@
 ### 2. RUN TOOL
 - Open File Explorer
 - Find USB drive folder
-- **Double-click `RUN_ME.bat`**
+- **Double-click `RUN_COLLECT.bat`**
 - Click "Yes" if Windows asks
 
 ### 3. WAIT & RETURN
@@ -23,16 +23,25 @@
 
 ---
 
+## ADVANCED / SILENT MODE
+
+**For stealthy collection:**
+1. Open PowerShell as Admin
+2. Run: `.\run-silent.ps1 -AnalystWorkstation "\\Server\Share"`
+3. Window hides, collects to %Temp%, uploads, and deletes local files.
+
+---
+
 ## TROUBLESHOOTING
 
 **Error: "Administrator Required"**
-→ Right-click RUN_ME.bat → Run as administrator
+→ Right-click RUN_COLLECT.bat → Run as administrator
 
 **Error: "PowerShell Disabled"**
 → Contact IT - PowerShell needed
 
 **Window Closes Quickly**
-→ Run Command Prompt as admin → Go to USB → Type: RUN_ME.bat
+→ Run Command Prompt as admin → Go to USB → Type: RUN_COLLECT.bat
 
 **Takes Too Long (>1 hour)**
 → Normal on large servers - let it finish

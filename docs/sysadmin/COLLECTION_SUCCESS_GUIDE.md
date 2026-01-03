@@ -38,6 +38,21 @@ C:\Temp\HER-Collector\run-collector.ps1 -AnalystWorkstation "analyst-workstation
 C:\Temp\HER-Collector\run-collector.ps1 -AnalystWorkstation "localhost"
 ```
 
+### Option: Silent Collection (Stealth Mode)
+
+Use this for sensitive investigations where you want to minimize visibility to logged-on users.
+
+```powershell
+# Runs invisibly, saves to %Temp%, exfiltrates to share, and self-cleans
+C:\Temp\HER-Collector\run-silent.ps1 -AnalystWorkstation "\\FileServer\EvidenceShare"
+```
+
+**Silent Mode Features:**
+- **Hidden Window:** The console window hides immediately upon execution.
+- **Temp Execution:** Collects to `%Temp%\HER_Collection_[Timestamp]` instead of the script directory.
+- **Auto-Exfiltration:** Sends data to the specified UNC path or Hostname.
+- **Self-Cleanup:** Deletes the collected evidence from `%Temp%` after successful transfer.
+
 ### Step 3: Verify Completion
 
 Look for this message:

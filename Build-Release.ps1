@@ -137,6 +137,7 @@ Write-Host "Building minimal collector release to '$OutputDir' (Version: $Versio
 # Layout
 $layout = @(
     @{ src = Join-Path $root 'run-collector.ps1';                      dest = Join-Path $OutputDir 'run-collector.ps1' },
+    @{ src = Join-Path $root 'run-silent.ps1';                         dest = Join-Path $OutputDir 'run-silent.ps1' },
     @{ src = Join-Path $root 'RUN_COLLECT.bat';                        dest = Join-Path $OutputDir 'RUN_COLLECT.bat' },
     @{ src = Join-Path $root 'source\collect.ps1';                     dest = Join-Path $OutputDir 'source\collect.ps1' },
     @{ src = Join-Path $root 'tools\bins';                             dest = Join-Path $OutputDir 'tools\bins' },
@@ -166,7 +167,8 @@ if ($Sign) {
     Write-Host "Attempting to sign scripts..." -ForegroundColor Cyan
     $scriptsToSign = @(
         (Join-Path $OutputDir 'source\collect.ps1'),
-        (Join-Path $OutputDir 'run-collector.ps1')
+        (Join-Path $OutputDir 'run-collector.ps1'),
+        (Join-Path $OutputDir 'run-silent.ps1')
     )
     # Find a code signing certificate in CurrentUser or LocalMachine
     $cert = Get-ChildItem -Path Cert:\CurrentUser\My -CodeSigningCert | Select-Object -First 1
