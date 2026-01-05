@@ -146,6 +146,8 @@ $layout = @(
     @{ src = Join-Path $root 'RELEASE_NOTES.md';                       dest = Join-Path $OutputDir 'RELEASE_NOTES.md' },
     @{ src = Join-Path $root 'docs\sysadmin\COLLECTION_SUCCESS_GUIDE.md'; dest = Join-Path $OutputDir 'docs\COLLECTION_GUIDE.md' },
     @{ src = Join-Path $root 'docs\sysadmin\QUICK_START.txt';          dest = Join-Path $OutputDir 'docs\QUICK_START.txt' },
+    @{ src = Join-Path $root 'docs\sysadmin\REQUEST_CODE_SIGNING_CERT.md'; dest = Join-Path $OutputDir 'docs\REQUEST_CODE_SIGNING_CERT.md' },
+    @{ src = Join-Path $root 'docs\sysadmin\CONFIGURE_CA_PERMISSIONS.md'; dest = Join-Path $OutputDir 'docs\CONFIGURE_CA_PERMISSIONS.md' },
     @{ src = Join-Path $root 'LICENSE';                                dest = Join-Path $OutputDir 'LICENSE' },
     @{ src = Join-Path $root 'NOTICE';                                 dest = Join-Path $OutputDir 'NOTICE' },
     @{ src = Join-Path $root '00_START_HERE.md';                       dest = Join-Path $OutputDir '00_START_HERE.md' }
@@ -189,7 +191,8 @@ if ($Sign) {
 
 # Optional: Create zip
 if ($Zip) {
-    $zipName = Join-Path (Join-Path $root 'releases') 'HER-Collector.zip'
+    # Use standardized naming: HER-<Version>-<Timestamp>.zip
+    $zipName = Join-Path (Join-Path $root 'releases') "HER-$Version-$timestamp.zip"
     if (-not (Test-Path (Split-Path $zipName -Parent))) { New-Item -ItemType Directory -Path (Split-Path $zipName -Parent) -Force | Out-Null }
     if (Test-Path $zipName) { Remove-Item $zipName -Force }
     Write-Host "Creating zip: $zipName" -ForegroundColor Cyan

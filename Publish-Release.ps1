@@ -54,8 +54,18 @@ if ($SourcePath) {
             $zipName = "HER-v$Version.zip"
         } elseif ($dirName -match '^\d{8}_\d{6}$') {
             $ReleaseID = $dirName
-            $Version = "Unknown" 
-            $zipName = "HER-$ReleaseID.zip"
+            
+            # Try to find version in the build folder's RELEASE_NOTES.md
+            $localRn = Join-Path $buildFolder "RELEASE_NOTES.md"
+            $Version = "Unknown"
+            if (Test-Path $localRn) {
+                $txt = Get-Content $localRn -Raw
+                if ($txt -match '(?m)^- \*\*Version\*\*:\s*(\d+\.\d+\.\d+)') {
+                    $Version = $Matches[1]
+                }
+            }
+            
+            $zipName = "HER-$Version-$ReleaseID.zip"
         } else {
             $ReleaseID = $dirName
             $Version = "Custom"
@@ -76,10 +86,18 @@ if ($SourcePath) {
         # It's a file (Zip)
         $zipPath = $SourcePath
         $zipName = Split-Path $zipPath -Leaf
-        # Simple deduction
-        $ReleaseID = "External"
-        $Version = "External"
-        if ($zipName -match 'v(\d+\.\d+\.\d+)') { $Version = $Matches[1] }
+        
+        # Deduce metadata from filename
+        if ($zipName -match 'HER-v(\d+\.\d+\.\d+)') {
+            $Version = $Matches[1]
+            $ReleaseID = "v$Version"
+        } elseif ($zipName -match 'HER-(\d{8}_\d{6})') {
+            $ReleaseID = $Matches[1]
+            $Version = "Unknown" 
+        } else {
+            $ReleaseID = "External"
+            $Version = "External"
+        }
     }
     
     Write-Host "Using explicit source: $SourcePath" -ForegroundColor Cyan
@@ -116,7 +134,7 @@ if ($SourcePath) {
     }
 
     # Zip the build folder if not already zipped
-    $zipName = "HER-$ReleaseID.zip"
+    $zipName = "HER-$Version-$ReleaseID.zip"
     $zipPath = Join-Path $releasesRoot $zipName
     if (-not (Test-Path $zipPath)) {
         Write-Host "Zipping latest build folder: $buildFolder -> $zipPath" -ForegroundColor Yellow

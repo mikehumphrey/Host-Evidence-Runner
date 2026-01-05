@@ -67,8 +67,11 @@ C:\Temp\HER-Collector\run-collector.ps1 -AnalystWorkstation "localhost"
 - If you relocate tools for any reason, keep the structure intact under `tools\bins` to avoid missing-utility errors.
 
 ### Building a release
-- From the repo root, run `pwsh -NoProfile -ExecutionPolicy Bypass -File .\Build-Release.ps1 -Zip`.
-- Output: `releases/<timestamp>/` plus `releases/HER-Collector.zip`.
+- **Standard Build:** From the repo root, run `pwsh -NoProfile -ExecutionPolicy Bypass -File .\Build-Release.ps1 -Zip`.
+  - Output: `releases/<timestamp>/` plus `releases/HER-<Version>-<Timestamp>.zip`.
+- **GitHub Release:** Run `.\Build-GitHubRelease.ps1 -Version "1.0.1"`.
+  - Creates a versioned release package and ZIP suitable for GitHub Assets.
+  - See [docs/GITHUB_RELEASE_GUIDE.md](docs/GITHUB_RELEASE_GUIDE.md) for the full workflow.
 - Release artifacts in `releases/` are generated and ignored by git; commit the source scripts only.
 
 ## Data Sources Collected

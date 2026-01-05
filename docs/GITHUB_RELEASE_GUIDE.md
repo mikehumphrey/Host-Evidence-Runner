@@ -38,7 +38,9 @@ git push origin v1.0.1
 
 ### Step 4: Verify
 - Download ZIP from release page
-- Extract and test: `.\run-collector.ps1 -AnalystWorkstation "localhost"`
+- Extract and test:
+  - Standard: `.\run-collector.ps1 -AnalystWorkstation "localhost"`
+  - Silent: `.\run-silent.ps1 -AnalystWorkstation "localhost"`
 
 ---
 
