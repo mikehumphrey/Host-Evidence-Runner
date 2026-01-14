@@ -40,7 +40,7 @@ $AnalystName = "Michael Humphrey"  # Analyst conducting analysis
 $AnalyzeScript = Join-Path $ProjectRoot "source\Analyze-Investigation.ps1"
 
 # Analysis Options - Set to $true to enable
-$EnableFullAnalysis = $false  # If true, runs all modules (overrides individual settings)
+$EnableFullAnalysis = $true  # If true, runs all modules (overrides individual settings)
 $EnableParallelExecution = $true  # Run independent operations in parallel
 
 # Phase 1: Parsing Operations (can run in parallel)
@@ -163,6 +163,29 @@ function Write-AnalysisLog {
     Write-Host $logEntry -ForegroundColor Cyan
 }
 
+# Writes captured job output and errors to the analysis log so background failures are visible.
+function Write-JobDiagnostics {
+    param(
+        [System.Management.Automation.Job]$Job,
+        [string]$Context
+    )
+
+    $jobOutput = Receive-Job -Job $Job -Keep
+    if ($jobOutput) {
+        $jobOutput | ForEach-Object { Write-AnalysisLog "$Context OUTPUT: $_" }
+    }
+
+    $jobErrors = $Job.ChildJobs | ForEach-Object { $_.Error }
+    if ($jobErrors) {
+        $jobErrors | ForEach-Object {
+            Write-AnalysisLog "$Context ERROR: $($_.Exception.Message)"
+            if ($_.InvocationInfo) {
+                Write-AnalysisLog "$Context ERROR Location: $($_.InvocationInfo.PositionMessage.Trim())"
+            }
+        }
+    }
+}
+
 # Header
 Write-Host "`n============================================================================" -ForegroundColor Cyan
 Write-Host "Investigation Analysis Execution" -ForegroundColor Cyan
@@ -254,12 +277,9 @@ if ($EnableParallelExecution -and $Phase1Jobs.Count -gt 0) {
     foreach ($job in $Phase1Jobs) {
         Write-Host "`n  ✅ Completed: $($job.Name)" -ForegroundColor Green
         Write-AnalysisLog "Completed: $($job.Name)"
-        
-        # Display job output
-        $output = Receive-Job -Job $job
-        if ($output) {
-            Write-Host $output -ForegroundColor Gray
-        }
+
+        # Display and log job output/errors
+        Write-JobDiagnostics -Job $job -Context $job.Name
         
         # Check for errors
         if ($job.State -eq 'Failed') {
@@ -382,11 +402,8 @@ if ($EnableParallelExecution -and $Phase3Jobs.Count -gt 0) {
     foreach ($job in $Phase3Jobs) {
         Write-Host "`n  ✅ Completed: $($job.Name)" -ForegroundColor Green
         Write-AnalysisLog "Completed: $($job.Name)"
-        
-        $output = Receive-Job -Job $job
-        if ($output) {
-            Write-Host $output -ForegroundColor Gray
-        }
+
+        Write-JobDiagnostics -Job $job -Context $job.Name
         
         if ($job.State -eq 'Failed') {
             Write-Host "  ❌ Job failed: $($job.Name)" -ForegroundColor Red

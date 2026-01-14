@@ -70,6 +70,7 @@ This guide covers end-to-end insider threat investigations using Host Evidence R
 1. Download from https://ericzimmerman.github.io/#!index.md
 2. Extract to `tools/optional/ZimmermanTools/`
 3. Prefer `net9` runtime (requires .NET Desktop Runtime 9)
+4. Install .NET 9 Desktop Runtime (winget): `winget install Microsoft.DotNet.Runtime.9`
 
 **Verify Installation:**
 ```powershell

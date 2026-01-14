@@ -55,6 +55,10 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$InvestigationPath,
 
+    # Project root (HER repo). Defaults to the parent of this script's directory so it works from any CWD.
+    [Parameter(Mandatory=$false)]
+    [string]$ProjectRoot,
+
     # Scanning & IOC Detection
     [Parameter(Mandatory=$false)]
     [string]$YaraInputFile,
@@ -127,9 +131,14 @@ param(
     [string]$CollectionPath
 )
 
-# Construct the full path to the module
-$scriptRoot = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
-$modulePath = Join-Path $scriptRoot "..\modules\CadoBatchAnalysis\CadoBatchAnalysis.psd1"
+    # Resolve project root relative to this script when not provided
+    $scriptRoot = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
+    if (-not $ProjectRoot) {
+        $ProjectRoot = Split-Path -Parent $scriptRoot
+    }
+
+    # Construct the full path to the module
+    $modulePath = Join-Path $ProjectRoot "modules\CadoBatchAnalysis\CadoBatchAnalysis.psd1"
 
 try {
     # Import the module. Using -Force to ensure the latest version is loaded in case of changes.

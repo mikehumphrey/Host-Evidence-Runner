@@ -5,6 +5,34 @@
     collected by the Host-Evidence-Runner (HER) toolset.
 #>
 
+# Resolve project/tool roots relative to this module so callers can run from any working directory
+$script:ModuleRoot   = $PSScriptRoot
+$script:ProjectRoot  = Split-Path (Split-Path $ModuleRoot -Parent) -Parent
+$script:ToolsRoot    = Join-Path $ProjectRoot "tools"
+
+function Resolve-ToolPath {
+    param([Parameter(Mandatory=$true)][string]$RelativePath)
+    $candidate = Join-Path $ToolsRoot $RelativePath
+    if (Test-Path $candidate) { return $candidate }
+    return $null
+}
+
+function Resolve-ZimmermanBinary {
+    param([Parameter(Mandatory=$true)][string]$BinaryName, [string]$SubFolder)
+    $netVersions = @("net9", "net8", "net6")
+    foreach ($netVer in $netVersions) {
+        $relative = "optional\\ZimmermanTools\\$netVer"
+        if ($SubFolder) { $relative = Join-Path $relative $SubFolder }
+        $relative = Join-Path $relative $BinaryName
+        $candidate = Resolve-ToolPath $relative
+        if ($candidate) {
+            Write-Host "   Using $BinaryName from $netVer folder" -ForegroundColor Gray
+            return $candidate
+        }
+    }
+    return $null
+}
+
 function New-YaraRuleFromInput {
 <#
 .SYNOPSIS
@@ -78,9 +106,9 @@ function Invoke-YaraScan {
         [string]$YaraInputFile
     )
     
-    $yaraExecutable = ".\tools\yara\yara64.exe"
-    if (-not (Test-Path $yaraExecutable)) {
-        Write-Error "Yara executable not found at '$yaraExecutable'. Please download it from https://github.com/VirusTotal/yara/releases and place it in the tools\yara folder."
+    $yaraExecutable = Resolve-ToolPath "yara\yara64.exe"
+    if (-not $yaraExecutable) {
+        Write-Error "Yara executable not found at '$ToolsRoot\yara\yara64.exe'. Please download it from https://github.com/VirusTotal/yara/releases and place it in the tools\yara folder."
         return
     }
 
@@ -146,16 +174,7 @@ function Invoke-EventLogParsing {
     )
     
     # Try to find EvtxECmd in available .NET versions (prefer newer versions first)
-    $evtxCmdPath = $null
-    $netVersions = @("net9", "net8", "net6")
-    foreach ($netVer in $netVersions) {
-        $testPath = ".\tools\optional\ZimmermanTools\$netVer\EvtxeCmd\EvtxECmd.exe"
-        if (Test-Path $testPath) {
-            $evtxCmdPath = $testPath
-            Write-Host "   Using EvtxECmd from $netVer folder" -ForegroundColor Gray
-            break
-        }
-    }
+    $evtxCmdPath = Resolve-ZimmermanBinary -BinaryName "EvtxECmd.exe" -SubFolder "EvtxeCmd"
     
     if (-not $evtxCmdPath) {
         Write-Error "EvtxECmd.exe not found in any .NET version folder. Options:`n" +
@@ -624,6 +643,102 @@ function Search-MFTForPaths {
     }
 }
 
+function Invoke-MFTParsing {
+<#
+.SYNOPSIS
+    Parses the collected $MFT using MFTECmd to produce timeline CSV output.
+.PARAMETER InvestigationPath
+    Path to the collection timestamp folder containing collected_files\$MFT.
+#>
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$InvestigationPath)
+
+    $mfteCmd = Resolve-ZimmermanBinary -BinaryName "MFTECmd.exe"
+    if (-not $mfteCmd) { Write-Error "MFTECmd.exe not found under $ToolsRoot\\optional\\ZimmermanTools"; return }
+
+    $mftPath = Join-Path $InvestigationPath "collected_files\`$MFT"
+    if (-not (Test-Path $mftPath)) {
+        Write-Error "MFT file not found at '$mftPath'. Ensure collection captured $MFT."; return
+    }
+
+    $outputDir = Join-Path $InvestigationPath "Phase3_MFT_Analysis"
+    if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir -Force | Out-Null }
+
+    Write-Host "1. Parsing MFT with MFTECmd..." -ForegroundColor Cyan
+    $arguments = @("-f", $mftPath, "--csv", $outputDir, "--csvf", "MFT_Full.csv")
+    try {
+        $process = Start-Process -FilePath $mfteCmd -ArgumentList $arguments -Wait -NoNewWindow -PassThru
+        if ($process.ExitCode -eq 0) {
+            Write-Host "✅ MFT parsing complete. Results saved to '$outputDir'." -ForegroundColor Green
+        } else {
+            Write-Warning "MFTECmd exited with code $($process.ExitCode). Check output for details."
+        }
+    } catch {
+        Write-Error "Failed to parse MFT: $_"
+    }
+}
+
+function Invoke-PrefetchAnalysis {
+<#
+.SYNOPSIS
+    Parses collected Prefetch files using PECmd.
+.PARAMETER InvestigationPath
+    Path to the collection timestamp folder containing collected_files\Prefetch.
+#>
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$InvestigationPath)
+
+    $peCmd = Resolve-ZimmermanBinary -BinaryName "PECmd.exe"
+    if (-not $peCmd) { Write-Error "PECmd.exe not found under $ToolsRoot\\optional\\ZimmermanTools"; return }
+
+    $prefetchDir = Join-Path $InvestigationPath "collected_files\Prefetch"
+    if (-not (Test-Path $prefetchDir)) { Write-Warning "Prefetch directory not found at '$prefetchDir'."; return }
+
+    $outputDir = Join-Path $InvestigationPath "Phase3_Prefetch_Analysis"
+    if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir -Force | Out-Null }
+
+    Write-Host "1. Parsing Prefetch with PECmd..." -ForegroundColor Cyan
+    $arguments = @("-d", $prefetchDir, "--csv", $outputDir, "--csvf", "Prefetch_Timeline.csv")
+    try {
+        $process = Start-Process -FilePath $peCmd -ArgumentList $arguments -Wait -NoNewWindow -PassThru
+        if ($process.ExitCode -eq 0) {
+            Write-Host "✅ Prefetch parsing complete. Results saved to '$outputDir'." -ForegroundColor Green
+        } else {
+            Write-Warning "PECmd exited with code $($process.ExitCode). Check output for details."
+        }
+    } catch {
+        Write-Error "Failed to parse Prefetch: $_"
+    }
+}
+
+function Invoke-RegistryAnalysis {
+<#
+.SYNOPSIS
+    Stub for registry parsing. RECmd batch usage not yet automated.
+#>
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$InvestigationPath)
+    Write-Warning "Registry parsing is not yet automated in HER. Run RECmd manually against collected_files\\Registry hives."
+}
+
+function Invoke-BrowserAnalysis {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$InvestigationPath)
+    Write-Warning "Browser analysis not yet automated. Use SQLECmd or EZViewer against collected browser databases in collected_files\\UserActivity_Analysis."
+}
+
+function Invoke-NetworkAnalysis {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$InvestigationPath)
+    Write-Warning "Network artifact analysis not yet automated. Review collected network artifacts manually." 
+}
+
+function Invoke-ADAnalysis {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$InvestigationPath)
+    Write-Warning "Active Directory artifact analysis not yet automated. Process NTDS/SYSVOL artifacts manually." 
+}
+
 function Generate-InvestigationReport {
     [CmdletBinding()]
     param(
@@ -781,4 +896,4 @@ function Generate-Reports {
     }
 }
 
-Export-ModuleMember -Function Invoke-YaraScan, Invoke-EventLogParsing, Search-EventLogData, Search-MFTForPaths, Generate-InvestigationReport, Generate-Reports
+Export-ModuleMember -Function Invoke-YaraScan, Invoke-EventLogParsing, Search-EventLogData, Invoke-MFTParsing, Invoke-PrefetchAnalysis, Invoke-RegistryAnalysis, Invoke-BrowserAnalysis, Invoke-NetworkAnalysis, Invoke-ADAnalysis, Search-MFTForPaths, Generate-InvestigationReport, Generate-Reports
