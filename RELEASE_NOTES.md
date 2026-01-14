@@ -2,9 +2,35 @@
 ---
 
 ## Version Information
-- **Version**: 1.0.4
-- **Release Date**: January 02, 2026
-- **Release ID**: 20260102_101325
+- **Version**: 1.1.1
+- **Release Date**: January 05, 2026
+- **PowerShell**: 5.1+
+- **Windows**: Windows 10/11, Server 2016+ (Legacy support for Win7/2008 R2)
+
+---
+### Summary
+Introduces "Silent Mode" for stealthy remote collection, streamlined release packaging, and comprehensive code signing documentation.
+
+### Key Improvements in This Release
+
+#### 1. Silent Collection Mode (New Feature)
+- **New Launcher**: `run-silent.ps1` enables stealthy execution without visible windows.
+- **Workflow**: Collects to `%Temp%`, exfiltrates to analyst share/workstation, and self-cleans local artifacts.
+- **Use Case**: Ideal for remote EDR response or discreet internal investigations.
+
+#### 2. Code Signing Support
+- **Documentation**: Added `REQUEST_CODE_SIGNING_CERT.md` and `CONFIGURE_CA_PERMISSIONS.md` to guide organizations in signing HER scripts.
+- **Security**: Facilitates running in environments with `AllSigned` execution policies.
+
+#### 3. Release Engineering
+- **Consistent Naming**: Release zips now follow `HER-<Version>-<Timestamp>.zip` format.
+- **Documentation**: `COLLECTION_SUCCESS_GUIDE` renormalized to `COLLECTION_GUIDE.md` for clarity.
+
+---
+
+## Version 1.0.4
+- **Release Date**: January 05, 2026
+- **Release ID**: 20260105_140857
 - **PowerShell**: 5.1+ (Windows 7 SP1 and later)
 - **Windows**: Windows 7 SP1 and later, Windows Server 2008 R2 and later
 
@@ -240,6 +266,10 @@ For issues, feedback, or feature requests, refer to project documentation or con
 - Network transfer problems → Verify SMB/445 connectivity
 - Long path errors → Expected in OneDrive environments, collection continues
 - Performance tuning → Use `-NoZip` for faster collection without compression
+
+
+
+
 
 
 

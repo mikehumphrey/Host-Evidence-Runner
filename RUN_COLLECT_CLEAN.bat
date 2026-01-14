@@ -132,23 +132,23 @@ echo [DEBUG] End of file listing
 echo.
 
 echo Checking for required files
-echo [DEBUG] Looking for: run-collector.ps1
-echo [DEBUG] Full path would be: %CD%\run-collector.ps1
+set "ROOT=%~dp0"
+set "COLLECTOR=%ROOT%run-collector.ps1"
+echo [DEBUG] Looking for: %COLLECTOR%
 
-if exist "run-collector.ps1" (
-    echo [DEBUG] SUCCESS: run-collector.ps1 FOUND
+if exist "%COLLECTOR%" (
+    echo [DEBUG] SUCCESS: run-collector.ps1 FOUND at %COLLECTOR%
+    echo Required files verified.
+    echo.
 ) else (
-    echo [DEBUG] FAILURE: run-collector.ps1 NOT FOUND
-)
-
-if not exist "run-collector.ps1" (
     color 0C
     echo.
     echo ============================================================================
     echo ERROR: Collection Script Missing
     echo ============================================================================
     echo.
-    echo The file "run-collector.ps1" was not found in the current directory.
+    echo The file "run-collector.ps1" was not found.
+    echo Expected location: %COLLECTOR%
     echo Current directory: %CD%
     echo.
     echo Please ensure you copied the complete HER toolkit.
@@ -164,9 +164,6 @@ if not exist "run-collector.ps1" (
     exit /b 1
 )
 
-echo Required files verified.
-echo.
-
 REM ============================================================================
 REM Analyst Workstation Parameter (defaults to localhost)
 REM ============================================================================
@@ -178,104 +175,7 @@ echo [DEBUG] User entered: [!analyst_ws!]
 REM If user pressed Enter without input, use localhost as default
 if "!analyst_ws!"=="" set "analyst_ws=localhost"
 echo [DEBUG] After default check, analyst_ws is: [!analyst_ws!]
-
-set "ANALYST_PARAM=-AnalystWorkstation '!analyst_ws!'"
-echo [DEBUG] ANALYST_PARAM set to: !ANALYST_PARAM!
+@echo off
+REM Archived: use RUN_COLLECT.bat in this directory.
+call "%~dp0RUN_COLLECT.bat" %*
 echo.
-echo Files will be transferred to: !analyst_ws!
-if "!analyst_ws!"=="localhost" (
-    echo Destination: C:\Temp\Investigations\%COMPUTERNAME%\[timestamp]
-) else (
-    echo Destination: \\!analyst_ws!\c$\Temp\Investigations\%COMPUTERNAME%\[timestamp]
-)
-echo.
-
-REM ============================================================================
-REM Start Collection
-REM ============================================================================
-
-echo.
-echo ============================================================================
-echo Starting collection
-echo.
-echo Please DO NOT close this window until collection completes!
-echo Progress will be displayed below.
-echo ============================================================================
-echo.
-echo Press any key to start the collection process
-pause >nul
-
-echo.
-echo [DEBUG] Preparing to run PowerShell script
-echo [DEBUG] Script path: "%~dp0run-collector.ps1"
-echo [DEBUG] Full command will be: powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-collector.ps1" !ANALYST_PARAM!
-echo.
-echo Running collection script
-echo Command: powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-collector.ps1" !ANALYST_PARAM!
-echo.
-
-REM Execute the PowerShell collection script
-echo [DEBUG] Executing PowerShell now
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-collector.ps1" !ANALYST_PARAM!
-
-set COLLECTION_RESULT=%ERRORLEVEL%
-echo.
-echo [DEBUG] PowerShell completed
-echo [DEBUG] Collection exit code: %COLLECTION_RESULT%
-echo PowerShell exited with code: %COLLECTION_RESULT%
-echo.
-
-REM ============================================================================
-REM Display Results
-REM ============================================================================
-
-echo.
-echo ============================================================================
-
-if %COLLECTION_RESULT% EQU 0 (
-    color 0A
-    echo.
-    echo   COLLECTION COMPLETED SUCCESSFULLY!
-    echo.
-    echo ============================================================================
-    echo.
-    echo Output location: investigations\%COMPUTERNAME%\[timestamp]
-    echo.
-    if not "!analyst_ws!"=="" (
-        echo Files have been transferred to: !analyst_ws!
-        echo.
-    )
-    echo Next steps:
-    echo   1. Review the COLLECTION_SUMMARY.txt for any warnings
-    if "!analyst_ws!"=="" (
-        echo   2. Copy the investigation folder to secure storage
-        echo   3. Provide to analyst for review
-    ) else (
-        echo   2. Verify files arrived at analyst workstation
-        echo   3. Securely delete local copy after confirmation
-    )
-    echo.
-) else (
-    color 0E
-    echo.
-    echo   COLLECTION COMPLETED WITH ERRORS
-    echo.
-    echo ============================================================================
-    echo.
-    echo Exit code: %COLLECTION_RESULT%
-    echo.
-    echo Please review the log file in investigations\%COMPUTERNAME%\[timestamp]
-    echo and provide it to your analyst for troubleshooting.
-    echo.
-)
-
-echo ============================================================================
-echo.
-echo [DEBUG] Script ending - about to pause and exit
-echo [DEBUG] Final COLLECTION_RESULT: %COLLECTION_RESULT%
-echo Press any key to close this window
-pause >nul
-echo [DEBUG] After pause, about to popd and exit
-popd
-echo [DEBUG] After popd, about to exit with code: %COLLECTION_RESULT%
-exit /b %COLLECTION_RESULT%
