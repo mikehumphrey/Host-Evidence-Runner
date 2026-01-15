@@ -22,6 +22,10 @@ INVESTIGATION_METADATA.txt
 SHA256_MANIFEST.txt
 collected_files.zip
 
+# Internal documentation (audit trails, validation reports with real data)
+docs/internal/
+PRE_PUSH_SECURITY_AUDIT.md
+
 # Logs
 logs/
 **/*.log
@@ -44,3 +48,4 @@ tests/test_data/
 
 Publish-Release-MOA.ps1
 Publish-Release-Local.ps1
+PRE_PUSH_SECURITY_AUDIT.md

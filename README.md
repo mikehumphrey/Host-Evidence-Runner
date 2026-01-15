@@ -1,6 +1,6 @@
 # Host Evidence Runner (HER)
 
-**Version:** 1.0.1  
+**Version:** 1.1.1  
 **Build Date:** December 2025
 
 A PowerShell-based forensic evidence collector for modern Windows systems (Windows 10, Windows 11, Server 2016+). Designed for rapid deployment from USB or network shares in incident response scenarios.

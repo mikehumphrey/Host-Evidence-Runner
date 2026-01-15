@@ -32,7 +32,7 @@
 $ProjectRoot = "C:\Temp\HER-Collector"  # UPDATE THIS TO YOUR HER INSTALLATION PATH
 
 # Investigation Details
-$InvestigationPath = "MOA-SD-PSDC01/20251217_162931  # Full path to collection folder
+$InvestigationPath = "Host001/20251217_162931  # Full path to collection folder
 $InvestigationName = "Insider_Threat_GoogleDrive_Exfil"  # Short name for this investigation
 $AnalystName = "Michael Humphrey"  # Analyst conducting analysis
 
@@ -85,7 +85,7 @@ $EventLogKeywords = @(
     # File access patterns
     "Confidential",
     "Restricted",
-    "Sensitive",
+    "Sensitive"
     
     # Add suspect username if known
     # "suspect.username",

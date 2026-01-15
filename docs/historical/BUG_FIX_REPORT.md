@@ -98,8 +98,8 @@ else {
 ### Robocopy Fix Validation
 ```
 Command Executed (manually verified):
-ROBOCOPY "C:\Temp\HER-Collector\investigations\SCORCHSAP01\20251217_104917" 
-         "\\analyst-ws\c$\Temp\Investigations\SCORCHSAP01\20251217_104917" 
+ROBOCOPY "C:\Temp\HER-Collector\investigations\SERVER01\20251217_104917" 
+         "\\analyst-ws\c$\Temp\Investigations\SERVER01\20251217_104917" 
          /E /DCOPY:T /COPY:DAT /LOG+:"ROBOCopyLog.txt" /TEE
 
 Result: ✅ SUCCESS

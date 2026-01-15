@@ -8,8 +8,8 @@ Write-Host "Testing Large CSV Search Fix" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 # Test configuration
-$testInvestigationPath = "C:\Temp\Investigations\MOA-SD-PSDC01\20251217_162931"
-$keywords = @("drive.google.com", "chrome.exe", "ADMJJJ")
+$testInvestigationPath = "C:\Temp\Investigations\HOST001\20251217_162931"
+$keywords = @("drive.google.com", "chrome.exe", "suspect-user")
 $eventIds = @(4663, 4688, 4624)
 
 Write-Host "Investigation Path: $testInvestigationPath" -ForegroundColor White
