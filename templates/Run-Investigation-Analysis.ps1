@@ -32,7 +32,7 @@
 $ProjectRoot = "C:\Temp\HER-Collector"  # UPDATE THIS TO YOUR HER INSTALLATION PATH
 
 # Investigation Details
-$InvestigationPath = "C:\Temp\Investigations\MOA-SD-PSDC01\20251217_162931"  # Full path to collection folder
+$InvestigationPath = "MOA-SD-PSDC01/20251217_162931  # Full path to collection folder
 $InvestigationName = "Insider_Threat_GoogleDrive_Exfil"  # Short name for this investigation
 $AnalystName = "Michael Humphrey"  # Analyst conducting analysis
 
@@ -60,7 +60,8 @@ $AnalyzeActiveDirectory = $false  # Only if DC artifacts collected
 
 # Phase 4: Advanced Operations
 $RunYaraScan = $false  # Set to $true if you have sensitive file list
-$YaraInputFile = ".\sensitive_files.csv"  # Path to CSV with FileName,SHA256Hash columns
+# Default Yara CSV lives beside this investigation; Join-Path avoids depending on the current working directory
+$YaraInputFile = Join-Path $InvestigationPath "sensitive_files.csv"  # Path to CSV with FileName,SHA256Hash columns
 
 # Phase 5: Reporting
 $GenerateReports = $true
