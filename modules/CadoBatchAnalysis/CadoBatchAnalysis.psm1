@@ -531,20 +531,10 @@ function Search-MFTForPaths {
         [string]$SearchPathsFile
     )
     
-    # Find MFTECmd
-    $mftCmdPath = $null
-    $netVersions = @("net9", "net8", "net6")
-    foreach ($netVer in $netVersions) {
-        $testPath = ".\tools\optional\ZimmermanTools\$netVer\MFTECmd.exe"
-        if (Test-Path $testPath) {
-            $mftCmdPath = $testPath
-            Write-Host "   Using MFTECmd from $netVer folder" -ForegroundColor Gray
-            break
-        }
-    }
-    
+    # Find MFTECmd using the same resolver as other Zimmerman tools
+    $mftCmdPath = Resolve-ZimmermanBinary -BinaryName "MFTECmd.exe"
     if (-not $mftCmdPath) {
-        Write-Error "MFTECmd.exe not found. Ensure Zimmerman Tools are installed."
+        Write-Error "MFTECmd.exe not found. Ensure Zimmerman Tools are installed under tools\optional\ZimmermanTools."
         return
     }
     

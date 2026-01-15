@@ -12,7 +12,13 @@
         'Invoke-YaraScan',
         'Invoke-EventLogParsing',
         'Search-EventLogData',
+        'Invoke-MFTParsing',
         'Search-MFTForPaths',
+        'Invoke-PrefetchAnalysis',
+        'Invoke-RegistryAnalysis',
+        'Invoke-BrowserAnalysis',
+        'Invoke-NetworkAnalysis',
+        'Invoke-ADAnalysis',
         'Generate-InvestigationReport',
         'Generate-Reports'
     )
