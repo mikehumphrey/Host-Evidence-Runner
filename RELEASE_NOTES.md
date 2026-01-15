@@ -3,7 +3,7 @@
 
 ## Version Information
 - **Version**: 1.1.1
-- **Release Date**: January 05, 2026
+- **Release Date**: January 15, 2026
 - **PowerShell**: 5.1+
 - **Windows**: Windows 10/11, Server 2016+ (Legacy support for Win7/2008 R2)
 
@@ -29,8 +29,8 @@ Introduces "Silent Mode" for stealthy remote collection, streamlined release pac
 ---
 
 ## Version 1.0.4
-- **Release Date**: January 05, 2026
-- **Release ID**: 20260105_140857
+- **Release Date**: January 15, 2026
+- **Release ID**: 20260115_095653
 - **PowerShell**: 5.1+ (Windows 7 SP1 and later)
 - **Windows**: Windows 7 SP1 and later, Windows Server 2008 R2 and later
 
@@ -266,6 +266,7 @@ For issues, feedback, or feature requests, refer to project documentation or con
 - Network transfer problems → Verify SMB/445 connectivity
 - Long path errors → Expected in OneDrive environments, collection continues
 - Performance tuning → Use `-NoZip` for faster collection without compression
+
 
 
 

@@ -22,7 +22,7 @@ Set-Location -Path C:\Temp
 # Copy-Item -Path "\\<SHARE_SERVER>\<SHARE_PATH>\HER-Collector.zip" -Destination C:\Temp\
 # 
 # Option B: Download from GitHub releases
-# Invoke-WebRequest -Uri "https://github.com/your-org/Host-Evidence-Runner/releases/download/v1.0.1/HER-Collector.zip" -OutFile C:\Temp\HER-Collector.zip
+# Invoke-WebRequest -Uri "https://github.com/mikehumphrey/Host-Evidence-Runner/releases/download/v1.1.1/HER-Collector.zip" -OutFile C:\Temp\HER-Collector.zip
 
 # Step 3: Extract the collector
 Expand-Archive -Path C:\Temp\HER-Collector.zip -DestinationPath C:\Temp\HER-Collector -Force

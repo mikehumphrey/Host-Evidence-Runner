@@ -22,7 +22,7 @@ Use this checklist to ensure quality and consistency before creating a new relea
 ## 2. Documentation Review
 - [ ] **README.md**: Verify "Quick Start" and "Features" match the code.
 - [ ] **RELEASE_NOTES.md**:
-    - Add a new section for the upcoming version (e.g., `## Version 1.1.0`).
+    - Add a new section for the upcoming version (e.g., `## Version 1.1.1`).
     - List new features (e.g., Silent Mode, UNC Support).
     - List bug fixes.
 - [ ] **Sysadmin Guides**: Check `docs/sysadmin/` for outdated instructions.
@@ -32,7 +32,7 @@ Use this checklist to ensure quality and consistency before creating a new relea
 - [ ] **Update RELEASE_NOTES.md**:
     - Update the top metadata block:
       ```markdown
-      - **Version**: 1.1.0
+      - **Version**: 1.1.1
       - **Release Date**: January 02, 2026
       ```
     - *Note: The build script can auto-increment the patch version, but manual update is safer for major/minor changes.*
@@ -41,7 +41,7 @@ Use this checklist to ensure quality and consistency before creating a new relea
 - [ ] **Run Build Script**:
     ```powershell
     # For GitHub Release (Versioned)
-    .\Build-GitHubRelease.ps1 -Version "1.1.0" -CreateTag
+    .\Build-GitHubRelease.ps1 -Version "1.1.1" -CreateTag
     ```
     *Or for local testing:*
     ```powershell
