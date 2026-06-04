@@ -9,7 +9,6 @@
     4. Verifies the new environment
 
 .NOTES
-    OneDrive Path: C:\Users\Michael.O.Humphrey\OneDrive - Municipality of Anchorage\Documents\Development\GitHub\Host-Evidence-Runner
     Target Path:   C:\Source\Host-Evidence-Runner
 #>
 

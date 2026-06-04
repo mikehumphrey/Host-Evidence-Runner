@@ -49,3 +49,4 @@ tests/test_data/
 Publish-Release-MOA.ps1
 Publish-Release-Local.ps1
 PRE_PUSH_SECURITY_AUDIT.md
+commit_report.csv

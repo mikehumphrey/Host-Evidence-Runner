@@ -4,7 +4,7 @@
 The current project location inside OneDrive causes several issues:
 1.  **Log Bloat:** OneDrive sync logs (`AppData\Local\Microsoft\OneDrive\logs`) grow exponentially as the collector runs.
 2.  **Performance:** OneDrive file locking slows down builds and collection tests.
-3.  **Path Limits:** Deep OneDrive paths (`C:\Users\...\OneDrive - Municipality...`) consume ~50 chars of the 260-char limit, causing `MAX_PATH` errors.
+3.  **Path Limits:** Deep OneDrive paths (`C:\Users\...\OneDrive...`) consume ~50 chars of the 260-char limit, causing `MAX_PATH` errors.
 4.  **Symlink Confusion:** `C:\Dev` is currently a symlink pointing back to OneDrive, masking the issue.
 
 ## Solution

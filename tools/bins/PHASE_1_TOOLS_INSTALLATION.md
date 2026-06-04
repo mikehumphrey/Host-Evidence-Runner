@@ -72,7 +72,7 @@ Run the following PowerShell script:
 
 ```powershell
 # Navigate to Cado-Batch directory
-cd 'C:\Users\[YourUsername]\OneDrive - Municipality of Anchorage\Documents\Development\GitHub\Cado-Batch'
+cd 'C:\Test\Cado-Batch'
 
 # Function to test if tool exists
 function Test-Tool {

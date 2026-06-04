@@ -13,7 +13,7 @@ Signature="$Windows NT$"
 
 [NewRequest]
 ; UPDATE THIS LINE:
-Subject = "CN=HER Code Signing, O=Municipality of Anchorage, C=US"
+Subject = "CN=HER Code Signing, O=Akmia, C=US"
 KeyLength = 2048
 KeySpec = 1
 KeyUsage = 0xA0

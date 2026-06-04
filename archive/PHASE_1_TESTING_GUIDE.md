@@ -11,7 +11,7 @@
 
 ```powershell
 # Navigate to project folder
-cd 'C:\Users\[YourName]\OneDrive - Municipality of Anchorage\Documents\Development\GitHub\Cado-Batch'
+cd 'C:\test\Cado-Batch'
 
 # Test 1: Check hashdeep
 .\bins\hashdeep.exe -v
