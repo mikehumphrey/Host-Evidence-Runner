@@ -5,6 +5,11 @@ desktop.ini
 .vscode/
 *.code-workspace
 
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+
 # Temporary/runtime files
 tmp/
 temp/

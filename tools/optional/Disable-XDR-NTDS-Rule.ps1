@@ -28,10 +28,8 @@
     Optional: Limit exception to specific process (e.g., "powershell.exe")
 
 .EXAMPLE
-    # Disable for 4 hours using environment variables
-    $env:XDR_URL = "https://org.xdr.us.paloaltonetworks.com"
-    $env:XDR_KEY = "your-api-key"
-    $env:XDR_SECRET = "your-api-secret"
+    # Set XDR_URL, XDR_KEY, and XDR_SECRET from a secure local source.
+    # See the repository's .env.example for the required variable names.
     .\Disable-XDR-NTDS-Rule.ps1
 
 .EXAMPLE
@@ -86,17 +84,11 @@ if (-not $TenantURL -or -not $APIKey -or -not $APISecret) {
     Write-Host ""
     Write-Host "Provide credentials via parameters or environment variables:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "  Option 1: Environment Variables" -ForegroundColor Green
-    Write-Host '    $env:XDR_URL = "https://org.xdr.us.paloaltonetworks.com"' -ForegroundColor White
-    Write-Host '    $env:XDR_KEY = "your-api-key"' -ForegroundColor White
-    Write-Host '    $env:XDR_SECRET = "your-api-secret"' -ForegroundColor White
+    Write-Host "  Option 1: Set XDR_URL, XDR_KEY, and XDR_SECRET from a secure local source." -ForegroundColor Green
+    Write-Host "    See the repository's .env.example for the required variable names." -ForegroundColor White
     Write-Host "    .\Disable-XDR-NTDS-Rule.ps1" -ForegroundColor White
     Write-Host ""
-    Write-Host "  Option 2: Command Line Parameters" -ForegroundColor Green
-    Write-Host "    .\Disable-XDR-NTDS-Rule.ps1 \" -ForegroundColor White
-    Write-Host '      -TenantURL "https://org.xdr.us.paloaltonetworks.com" \' -ForegroundColor White
-    Write-Host '      -APIKey "key" \' -ForegroundColor White
-    Write-Host '      -APISecret "secret"' -ForegroundColor White
+    Write-Host "  Option 2: Supply parameters from a secure credential source." -ForegroundColor Green
     Write-Host ""
     exit 1
 }

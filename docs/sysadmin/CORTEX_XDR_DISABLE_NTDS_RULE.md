@@ -128,16 +128,10 @@ Write-Host ""
 
 ### Usage:
 ```powershell
-# Set your credentials (store securely, don't hardcode)
-$Creds = @{
-    TenantURL = "https://your-org.xdr.us.paloaltonetworks.com"
-    APIKey = "your-api-key-here"
-    APISecret = "your-api-secret-here"
-    DurationHours = 4
-}
-
-# Run the script
-.\Disable-XDR-NTDS-Rule.ps1 @Creds
+# Set XDR_URL, XDR_KEY, and XDR_SECRET in your local environment or secret manager.
+# The repository's .env.example lists the required variable names; PowerShell
+# does not load .env files automatically.
+.\tools\optional\Disable-XDR-NTDS-Rule.ps1
 ```
 
 ---
