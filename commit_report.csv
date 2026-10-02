@@ -1,0 +1,65 @@
+b741a3f, 2026-01-15 11:31:45, feat: Update download link in README for HER-Collector to version 1.1.1
+aba5484, 2026-01-15 09:59:55, feat: Update download link in README for HER-Collector to version 1.1.1
+752b62c, 2026-01-15 09:37:47, feat: Update investigation paths and enhance documentation for analysis scripts
+03e8b92, 2026-01-14 15:49:43, feat: Update investigation path and improve Yara input file handling in analysis script
+18af543, 2026-01-14 15:49:37, feat: Add additional analysis functions and improve MFTECmd resolution method
+25911fe, 2026-01-13 17:04:21, feat: Enhance analysis scripts with project root parameter and job diagnostics logging
+0fb875f, 2026-01-13 16:04:03, feat: Add Redact-TemplateCsv function for redacting sensitive columns in CSV files
+e2b1939, 2026-01-13 16:03:53, feat: Update release notes for version 1.1.1 and enhance batch scripts with debugging information
+400cc49, 2026-01-05 12:59:38, feat: Update build scripts and documentation for versioning and release process
+f4334b0, 2026-01-05 12:59:24, feat: Add documentation for configuring CA permissions and requesting a code signing certificate
+0caf56c, 2026-01-02 16:24:25, feat: Add silent launcher and update documentation for stealth mode collection
+5e3d3ce, 2026-01-02 14:30:17, feat: Add silent launcher for Host Evidence Runner with collection and transfer capabilities
+54d488d, 2026-01-02 14:30:03, feat: Enhance Publish-Release script with explicit source handling and improve local target parameter
+7c15779, 2026-01-02 14:29:48, feat: Migrate project from OneDrive to local storage and update migration plan
+03ed1f1, 2025-12-31 19:18:58, feat: Add Publish-Release script for automated release publishing and enhance collect script with improved output handling
+fb572b0, 2025-12-31 16:05:21, feat: Update version number to 1.0.2 and enhance release notes formatting
+242c844, 2025-12-31 15:44:01, feat: Enhance Build-Release script with version handling and update release notes management
+6762ee5, 2025-12-31 14:43:35, feat: Update Build scripts to enhance version handling and improve ZIP creation error management
+fb9d95f, 2025-12-31 14:43:26, feat: Enhance Lab-Analyze script with PlasoOnly option and improve error handling for Plaso execution
+7aed782, 2025-12-26 16:42:47, feat: Implement Chainsaw and AI analysis scripts for forensic investigations
+9cdaaf2, 2025-12-25 21:51:31, feat: Add Chainsaw hunt script template for forensic investigations
+0a718a9, 2025-12-18 15:13:15, refactor: Update project references from Cado-Batch to Host-Evidence-Runner and enhance documentation
+d27d4b6, 2025-12-18 15:10:32, feat: Add Sigma mappings for event logs and legacy support
+9719e14, 2025-12-18 14:09:25, feat: Implement GitHub release workflow and add release guide documentation
+c7e769c, 2025-12-18 12:49:24, fix: Update project root configuration and enhance validation checks in Run-Investigation-Analysis script
+6b80386, 2025-12-18 12:06:11, Update Analyst Workstation Guide and add Collection Success Guide
+720a679, 2025-12-18 11:44:24, feat: Add comprehensive AI agent instructions for Host Evidence Runner
+02c1c91, 2025-12-18 11:14:26, fix: Enhance error handling for API authentication issues in Disable-XDR-NTDS-Rule script
+c32755c, 2025-12-17 16:21:14, Add validation script for AnalystWorkstation parameter handling and disable Cortex XDR NTDS rule
+9d6783b, 2025-12-17 14:41:49, docs: Add reorganization summary to historical archive
+562b1f5, 2025-12-17 14:33:02, refactor: Reorganize repository structure and clean up root directory
+d072bb0, 2025-12-17 12:46:57, fix: Validate and enhance AnalystWorkstation parameter workflow
+8896509, 2025-12-17 11:44:59, chore: Remove large ZimmermanTools DLLs from repository
+6426cb4, 2025-12-17 11:41:44, fix: Resolve Robocopy exit code 16 and enhance compression compatibility
+a44483a, 2025-12-17 11:13:33, fix: Robocopy argument parsing and PowerShell 3.0+ compression compatibility
+662a9e8, 2025-12-17 11:03:59, feat: Add comprehensive security audit report and pre-push checklist for public release
+d9135c4, 2025-12-17 09:48:06, feat: Update HER Collector with MAX_PATH handling and improved error resilience
+73a9404, 2025-12-17 09:04:08, Enhance HER-Collector for Improved Automation and Error Handling
+e848734, 2025-12-17 08:14:06, feat: Add project reorganization summary and enhance analysis script
+0379bd9, 2025-12-16 08:53:00, feat: Update project structure validation and enhance collection scripts with improved documentation and transfer options
+fe8eefe, 2025-12-15 15:39:13, Add Sysadmin Deployment Guide and remove outdated documentation
+03363e9, 2025-12-15 13:22:23, feat: Add optional compression and flatten registry paths to handle long file names
+4f28b27, 2025-12-15 12:42:47, feat: Enhance artifact collection with 64-bit version checks and detailed tracking summary
+82924ad, 2025-12-15 12:22:57, feat: Enhance execution policy checks and provide user guidance for script execution
+8260732, 2025-12-15 12:06:25, feat: Update artifact packaging and logging structure for improved collection process
+94eef86, 2025-12-15 11:24:30, feat: Rebrand project to Host Evidence Runner (HER) and update related documentation
+b4cc90e, 2025-12-12 17:35:50, feat: Add project context and rebranding strategy for Host Evidence Runner
+05a0960, 2025-12-12 17:32:08, feat: Enhance path resolution and add SafeJoinPath function for robust file handling
+0880ee4, 2025-12-12 15:55:22, feat: Implement release build script and update documentation for sysadmin usage
+13a67b8, 2025-12-12 15:32:49, feat: Add reporting functionality to generate summaries for investigations, hosts, and collections
+0a65889, 2025-12-12 15:16:13, feat: Enhance post-collection analysis with event log parsing and MFT search capabilities
+8651ca1, 2025-12-12 13:40:39, fix: Update .gitignore to include additional temporary files and logs
+d9b581b, 2025-12-12 13:32:03, fix: Update variable names for clarity and consistency in scripts
+0097b39, 2025-12-12 12:49:29, Added ZimmermanTools to the project.
+72453b2, 2025-12-12 12:37:02, Add WinPrefetchView
+5ef07ad, 2025-12-12 12:35:31, feat: Add validation script and log for project structure, including Yara analysis module and templates
+c85f8c2, 2025-12-12 11:49:03, Add hashdeep and md5deep tools with documentation and binaries
+e829e7c, 2025-12-12 11:16:59, Add Phase 2 Tools Installation Guide and Multi-Server Collection Script
+890f285, 2025-12-12 10:42:25, feat: Add .gitignore and update Phase 1 Tools Installation guide with new download link for hashdeep
+920083b, 2025-12-12 10:33:57, feat: Complete Phase 1 Tool Installation and Integration
+a0dd8aa, 2025-12-12 09:57:22, Add technical documentation and implementation plan for Cado-Batch forensic collection tool
+e105fc9, 2025-12-12 09:24:19, Enhance data collection in README and PowerShell script with additional artifacts including Windows Search Index, Scheduled Tasks, Recycle Bin metadata, and user activity history.
+4e7f005, 2025-12-12 08:54:13, Update copyright year and owner in LICENSE file
+a620f4a, 2025-12-12 08:54:07, Add PowerShell script for collecting system artifacts and user data
+964f8f7, 2025-12-12 08:50:10, Update README and collect.bat for PowerShell script modernization and improved data collection
